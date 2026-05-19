@@ -1,31 +1,411 @@
-name: Weekly Test
+name: vLLM XPU Benchmark
 
 on:
   workflow_dispatch:
     inputs:
-      priority:
+      docker_image:
+        description: "Full docker image URI (repo:tag)"
+        type: string
+        required: true
+        default: "public.ecr.aws/q9t5s3a7/vllm-ci-test-repo:latest-xpu"
+
+      vllm_repo:
+        description: "vLLM git repository URL"
+        type: string
+        default: "https://github.com/vllm-project/vllm.git"
+
+      vllm_branch:
+        description: "vLLM branch to checkout"
+        type: string
+        default: "main"
+
+      vllm_xpu_kernel_repo:
+        description: "vLLM XPU kernel repo URL (leave empty to skip)"
+        type: string
+        default: ""
+
+      vllm_xpu_kernel_branch:
+        description: "vLLM XPU kernel branch"
+        type: string
+        default: "main"
+
+      test_case_file:
+        description: "Path to test case file (relative to repo root)"
+        type: string
+        default: ""
+
+      test_case_param:
+        description: "Inline test case definitions (use \\n to separate lines)"
+        type: string
+        default: ""
+
+      extra_args:
+        description: "Extra arguments for vLLM server"
+        type: string
+        default: ""
+
+      extra_ENV:
+        description: "Extra environment variables for container"
+        type: string
+        default: ""
+
+      default_dtype:
+        description: "Default data type"
         type: choice
         options:
-          - low
-          - normal
-          - high
+          - float16
+          - bfloat16
+        default: "bfloat16"
 
-      runner_num:
+      log_level:
+        description: "Log level"
+        type: choice
+        options:
+          - DEBUG
+          - INFO
+          - WARNING
+          - ERROR
+        default: "INFO"
+
+      num_warmup:
+        description: "Number of warmup iterations"
         type: number
-        default: 4
+        default: 8
+
+      client_docker_timeout:
+        description: "Client docker timeout (seconds)"
+        type: number
+        default: 1800
+
+      case_repeat:
+        description: "Repeat each test case N times"
+        type: number
+        default: 1
+
+      node_label:
+        description: "Node label (determines HF cache path)"
+        type: string
+        default: "B60_group"
+
+      model_cache:
+        description: "Model cache path override (leave empty for auto)"
+        type: string
+        default: ""
+
+      build_kernel:
+        description: "Build vLLM XPU kernel (not implemented yet)"
+        type: boolean
+        default: false
+
+      build_image:
+        description: "Build vLLM docker image (not implemented yet)"
+        type: boolean
+        default: false
+
+  # schedule:
+  #   - cron: '0 0 * * 1'  # Weekly Monday midnight UTC
 
 jobs:
-  submit:
-    runs-on: ubuntu-latest
+  # ──────────────────────────────────────────────
+  # Stub: Build Kernel (future)
+  # ──────────────────────────────────────────────
+  build-kernel:
+    if: ${{ inputs.build_kernel == true }}
+    runs-on: [self-hosted, B60_group]
+    steps:
+      - name: Placeholder
+        run: echo "TODO - Build vLLM XPU kernel not yet implemented"
+
+  # ──────────────────────────────────────────────
+  # Stub: Build Image (future)
+  # ──────────────────────────────────────────────
+  build-image:
+    if: ${{ inputs.build_image == true }}
+    needs: [build-kernel]
+    runs-on: [self-hosted, B60_group]
+    steps:
+      - name: Placeholder
+        run: echo "TODO - Build vLLM docker image not yet implemented"
+
+  # ──────────────────────────────────────────────
+  # Main: Benchmark
+  # ──────────────────────────────────────────────
+  benchmark:
+    runs-on: [self-hosted, B60_group]
+    timeout-hours: 24
 
     steps:
-      - name: Submit weekly job
+      # ── Checkout ──
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Cleanup previous runs ──
+      - name: Cleanup workspace
         run: |
-          curl -X POST http://YOUR_SCHEDULER:8080/submit \
-            -H "Content-Type: application/json" \
-            -d '{
-              "repo": "${{ github.repository }}",
-              "commit": "${{ github.sha }}",
-              "priority": "${{ github.event.inputs.priority }}",
-              "runner_num": "${{ github.event.inputs.runner_num }}"
-            }'
+          sudo chmod -R 777 $GITHUB_WORKSPACE || true
+          rm -rf $GITHUB_WORKSPACE/logs/*
+          mkdir -p $GITHUB_WORKSPACE/logs
+
+      # ── Clone vLLM & kernel repos ──
+      - name: Clone vLLM and kernel repositories
+        env:
+          VLLM_REPO: ${{ inputs.vllm_repo }}
+          VLLM_BRANCH: ${{ inputs.vllm_branch }}
+          KERNEL_REPO: ${{ inputs.vllm_xpu_kernel_repo }}
+          KERNEL_BRANCH: ${{ inputs.vllm_xpu_kernel_branch }}
+          TEST_CASE_FILE: ${{ inputs.test_case_file }}
+          TEST_CASE_PARAM: ${{ inputs.test_case_param }}
+        run: |
+          set -euo pipefail
+          set -x
+
+          # Resolve test case file to determine if we need vllm repo
+          resolved_case_file="${TEST_CASE_FILE}"
+          if [[ -n "${TEST_CASE_PARAM}" ]]; then
+            printf '%s\n' "${TEST_CASE_PARAM}" | sed 's/\\n/\n/g' | tr -d '\r' > "${GITHUB_WORKSPACE}/case_list.txt"
+            resolved_case_file="${GITHUB_WORKSPACE}/case_list.txt"
+          fi
+
+          kernel_repo="${KERNEL_REPO}"
+          kernel_branch="${KERNEL_BRANCH:-main}"
+          needs_vllm_repo=1
+
+          # Check if only kernel UT cases - skip vllm clone if so
+          if [[ -n "${resolved_case_file}" ]] && [[ -f "${resolved_case_file}" ]] && grep -q "run_vllm_xpu_kernel_ut.sh" "${resolved_case_file}"; then
+            if [[ -z "${kernel_repo}" ]]; then
+              kernel_repo="https://github.com/vllm-project/vllm.git"
+              kernel_branch="main"
+            fi
+            if ! grep -Ev '^[[:space:]]*($|#)|run_vllm_xpu_kernel_ut[.]sh' "${resolved_case_file}" >/dev/null; then
+              needs_vllm_repo=0
+            fi
+          fi
+
+          # Clone vllm
+          if [[ "${needs_vllm_repo}" == "1" ]]; then
+            if [[ -d vllm/.git ]]; then
+              git -C vllm fetch --all --prune
+            else
+              rm -rf vllm
+              git clone "${VLLM_REPO}" vllm
+            fi
+            git -C vllm checkout "${VLLM_BRANCH}"
+          fi
+
+          # Clone kernel repo if specified
+          if [[ -n "${kernel_repo}" ]]; then
+            rm -rf vllm_xpu_kernel
+            git clone --branch "${kernel_branch}" --single-branch "${kernel_repo}" vllm_xpu_kernel
+          fi
+
+      # ── Resolve test case file ──
+      - name: Resolve test case file
+        id: resolve_cases
+        env:
+          TEST_CASE_FILE: ${{ inputs.test_case_file }}
+          TEST_CASE_PARAM: ${{ inputs.test_case_param }}
+        run: |
+          set -euo pipefail
+
+          if [[ -n "${TEST_CASE_PARAM}" ]]; then
+            printf '%s\n' "${TEST_CASE_PARAM}" | sed 's/\\n/\n/g' | tr -d '\r' > "${GITHUB_WORKSPACE}/case_list.txt"
+            resolved="${GITHUB_WORKSPACE}/case_list.txt"
+            echo "Using inline test_case_param"
+          elif [[ -n "${TEST_CASE_FILE}" ]]; then
+            resolved="${GITHUB_WORKSPACE}/${TEST_CASE_FILE}"
+            echo "Using test_case_file: ${resolved}"
+          else
+            echo "::error::No test cases specified. Provide test_case_file or test_case_param."
+            exit 1
+          fi
+
+          if [[ ! -f "${resolved}" ]]; then
+            echo "::error::Test case file not found: ${resolved}"
+            exit 1
+          fi
+
+          echo "Resolved case file contents:"
+          cat "${resolved}"
+          echo "resolved_case_file=${resolved}" >> "$GITHUB_OUTPUT"
+
+          # Save a copy in logs
+          mkdir -p ${GITHUB_WORKSPACE}/logs/TEST_CASES
+          cp "${resolved}" ${GITHUB_WORKSPACE}/logs/TEST_CASES/ || true
+
+      # ── Pull docker image ──
+      - name: Pull docker image
+        env:
+          DOCKER_IMAGE: ${{ inputs.docker_image }}
+        run: |
+          set -euo pipefail
+          if ! docker image inspect "${DOCKER_IMAGE}" > /dev/null 2>&1; then
+            echo "Pulling image: ${DOCKER_IMAGE}"
+            docker pull "${DOCKER_IMAGE}"
+          else
+            echo "Image already exists: ${DOCKER_IMAGE}"
+          fi
+
+      # ── Install host dependencies ──
+      - name: Install host dependencies
+        run: |
+          set -euo pipefail
+          . ~/miniforge3/bin/activate || true
+
+          # apt packages
+          missing_apt=()
+          for pkg in libpq-dev python3-dev build-essential; do
+            dpkg -s "$pkg" &>/dev/null || missing_apt+=("$pkg")
+          done
+          if [[ ${#missing_apt[@]} -gt 0 ]]; then
+            sudo apt-get update -qq
+            sudo apt-get install -y "${missing_apt[@]}"
+          fi
+
+          # pip packages
+          missing_pip=()
+          for pkg in pandas sqlalchemy docker GitPython psycopg json5; do
+            pip show "$pkg" &>/dev/null || missing_pip+=("$pkg")
+          done
+          if [[ ${#missing_pip[@]} -gt 0 ]]; then
+            install_list=("${missing_pip[@]/psycopg/psycopg[binary]}")
+            pip install "${install_list[@]}" || true
+          fi
+
+      # ── Run benchmark ──
+      - name: Run benchmark
+        env:
+          DOCKER_IMAGE: ${{ inputs.docker_image }}
+          VLLM_BRANCH: ${{ inputs.vllm_branch }}
+          EXTRA_ARGS: ${{ inputs.extra_args }}
+          EXTRA_ENV: ${{ inputs.extra_ENV }}
+          DEFAULT_DTYPE: ${{ inputs.default_dtype }}
+          LOG_LEVEL: ${{ inputs.log_level }}
+          NUM_WARMUP: ${{ inputs.num_warmup }}
+          CLIENT_DOCKER_TIMEOUT: ${{ inputs.client_docker_timeout }}
+          CASE_REPEAT: ${{ inputs.case_repeat }}
+          NODE_LABEL: ${{ inputs.node_label }}
+          MODEL_CACHE: ${{ inputs.model_cache }}
+          KERNEL_REPO: ${{ inputs.vllm_xpu_kernel_repo }}
+          KERNEL_BRANCH: ${{ inputs.vllm_xpu_kernel_branch }}
+          RESOLVED_CASE_FILE: ${{ steps.resolve_cases.outputs.resolved_case_file }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          CI_BUILD_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          . ~/miniforge3/bin/activate || true
+
+          # Split docker_image into repo and tag
+          DOCKER_REPO="${DOCKER_IMAGE%:*}"
+          DOCKER_TAG="${DOCKER_IMAGE##*:}"
+
+          # Build kernel parameters
+          KERNEL_PARAMS=""
+          if [[ -n "${KERNEL_REPO}" ]]; then
+            KERNEL_PARAMS="${KERNEL_PARAMS} --vllm-xpu-kernel-repo ${KERNEL_REPO}"
+          fi
+          if [[ -n "${KERNEL_BRANCH}" ]]; then
+            KERNEL_PARAMS="${KERNEL_PARAMS} --vllm-xpu-kernel-branch ${KERNEL_BRANCH}"
+          fi
+
+          # Build MODEL-CACHE parameter
+          MODEL_CACHE_PARAM=""
+          if [[ -n "${MODEL_CACHE}" ]]; then
+            MODEL_CACHE_PARAM="--MODEL-CACHE ${MODEL_CACHE}"
+          fi
+
+          # Build HF-TOKEN parameter
+          HF_TOKEN_PARAM=""
+          if [[ -n "${HF_TOKEN:-}" ]]; then
+            HF_TOKEN_PARAM="--HF-TOKEN ${HF_TOKEN}"
+          fi
+
+          echo "========================================="
+          echo "Docker image: ${DOCKER_IMAGE}"
+          echo "Test cases:   ${RESOLVED_CASE_FILE}"
+          echo "vLLM branch:  ${VLLM_BRANCH}"
+          echo "Node label:   ${NODE_LABEL}"
+          echo "========================================="
+
+          python vllm_test_framework/main.py \
+            --skip-db \
+            --cases-file-path "${RESOLVED_CASE_FILE}" \
+            --docker-repo "${DOCKER_REPO}" \
+            --docker-tag "${DOCKER_TAG}" \
+            --node-label "${NODE_LABEL}" \
+            --workspace-path "${GITHUB_WORKSPACE}" \
+            --jenkins-build-url "${CI_BUILD_URL}" \
+            ${HF_TOKEN_PARAM} \
+            ${MODEL_CACHE_PARAM} \
+            --vllm-branch "${VLLM_BRANCH}" \
+            --extra-args "${EXTRA_ARGS}" \
+            --extra-ENV "${EXTRA_ENV}" \
+            --log-level "${LOG_LEVEL}" \
+            --default-dtype "${DEFAULT_DTYPE}" \
+            --profile 0 \
+            --num-warmup "${NUM_WARMUP}" \
+            --client-docker-timeout "${CLIENT_DOCKER_TIMEOUT}" \
+            --case-repeat "${CASE_REPEAT}" \
+            ${KERNEL_PARAMS} \
+            2>&1 | tee ${GITHUB_WORKSPACE}/logs/benchmark.log
+
+      # ── Generate Job Summary ──
+      - name: Generate job summary
+        if: always()
+        run: |
+          set -euo pipefail
+
+          SUMMARY_FILE="${GITHUB_WORKSPACE}/logs/summary_performance_NEW.log"
+
+          echo "## vLLM XPU Benchmark Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Docker image:** \`${{ inputs.docker_image }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **vLLM branch:** \`${{ inputs.vllm_branch }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Node label:** \`${{ inputs.node_label }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Run:** [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ -f "${SUMMARY_FILE}" ]]; then
+            echo "### Performance Summary" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+
+            # Read header and data, convert semicolon-separated to markdown table
+            header=$(head -1 "${SUMMARY_FILE}")
+            if [[ -n "${header}" ]]; then
+              # Convert semicolon-separated header to markdown table header
+              echo "| $(echo "${header}" | sed 's/;/ | /g') |" >> "$GITHUB_STEP_SUMMARY"
+              # Generate separator row
+              num_cols=$(echo "${header}" | awk -F';' '{print NF}')
+              sep="|"
+              for ((i=1; i<=num_cols; i++)); do sep="${sep} --- |"; done
+              echo "${sep}" >> "$GITHUB_STEP_SUMMARY"
+              # Convert data rows
+              tail -n +2 "${SUMMARY_FILE}" | head -100 | while IFS= read -r line; do
+                [[ -z "${line}" ]] && continue
+                echo "| $(echo "${line}" | sed 's/;/ | /g') |" >> "$GITHUB_STEP_SUMMARY"
+              done
+            fi
+          else
+            echo "*No performance summary file found.*" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          # Also show benchmark log tail
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "<details><summary>Benchmark log (last 50 lines)</summary>" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f "${GITHUB_WORKSPACE}/logs/benchmark.log" ]]; then
+            tail -50 "${GITHUB_WORKSPACE}/logs/benchmark.log" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No benchmark log found." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "</details>" >> "$GITHUB_STEP_SUMMARY"
+
+      # ── Upload artifacts ──
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-logs-${{ github.run_number }}
+          path: logs/
+          retention-days: 30

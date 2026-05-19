@@ -25,10 +25,12 @@ def parse_args():
                             help='Database user')
     db_group.add_argument('--db-name', type=str, default='vllm_benchmarks',
                             help='Database name')
-    db_group.add_argument('--db-password', type=str, required=True,
+    db_group.add_argument('--db-password', type=str, default='',
                             help='Database password')
-    db_group.add_argument('--db-table', type=str, required=True,
+    db_group.add_argument('--db-table', type=str, default='',
                             help='Database table for test cases')
+    db_group.add_argument('--skip-db', action='store_true',
+                            help='Skip database operations entirely')
 
     test_group = parser.add_argument_group('Test Options')
     test_group.add_argument('--cases-file-path', type=str, default=None,
@@ -97,7 +99,7 @@ def main():
     server_manager = ServerManager(args)
     client_tester = ClientTester(args)
     result_collector = ResultCollector(args)
-    db_updater = DBUpdater(args)
+    db_updater = None if args.skip_db else DBUpdater(args)
 
     logger.info("="*50)
     logger.info("**********Step 1: Generating and grouping test cases...")
@@ -136,8 +138,11 @@ def main():
             logger.error(f"An error occurred while generating the report: {e}")
             logger.error(traceback.print_exc())
 
-    logger.info("**********Step 4: Updating results to database...")
-    db_updater.insert_data(result_collector.all_results)
+    if db_updater:
+        logger.info("**********Step 4: Updating results to database...")
+        db_updater.insert_data(result_collector.all_results)
+    else:
+        logger.info("**********Step 4: Skipping database update (--skip-db).")
     
 
 if __name__ == "__main__":
