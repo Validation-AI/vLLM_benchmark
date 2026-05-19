@@ -132,7 +132,7 @@ jobs:
   # ──────────────────────────────────────────────
   benchmark:
     runs-on: [self-hosted, B60_group]
-    timeout-hours: 24
+    timeout-minutes: 1440
 
     steps:
       # ── Checkout ──
