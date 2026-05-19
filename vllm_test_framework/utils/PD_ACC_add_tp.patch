@@ -1,0 +1,176 @@
+diff --git a/tests/v1/kv_connector/nixl_integration/run_xpu_disagg_accuracy_test.sh b/tests/v1/kv_connector/nixl_integration/run_xpu_disagg_accuracy_test.sh
+index 3e9e2cb73..795db3b11 100644
+--- a/tests/v1/kv_connector/nixl_integration/run_xpu_disagg_accuracy_test.sh
++++ b/tests/v1/kv_connector/nixl_integration/run_xpu_disagg_accuracy_test.sh
+@@ -1,6 +1,46 @@
+ #!/bin/bash
+ set -e
+ 
++# Parse TP configuration (e.g., 1P2D)
++parse_tp_config() {
++    local config=$1
++    # Extract P and D numbers
++    P_NUM=$(echo "$config" | grep -oP '(\d+)(?=P)' || echo "1")
++    D_NUM=$(echo "$config" | grep -oP '(\d+)(?=D)' || echo "1")
++    
++    # Total TP = P + D
++    TOTAL_TP=$((P_NUM + D_NUM))
++    
++    # Set affinity masks
++    # BASELINE uses all tiles
++    BASELINE_AFFINITY="0"
++    if [ "$TOTAL_TP" -gt 1 ]; then
++        for ((i=1; i<TOTAL_TP; i++)); do
++            BASELINE_AFFINITY="${BASELINE_AFFINITY},$i"
++        done
++    fi
++    
++    # PREFILL uses first P_NUM tiles
++    PREFILL_AFFINITY="0"
++    if [ "$P_NUM" -gt 1 ]; then
++        for ((i=1; i<P_NUM; i++)); do
++            PREFILL_AFFINITY="${PREFILL_AFFINITY},$i"
++        done
++    fi
++    
++    # DECODE uses last D_NUM tiles
++    DECODE_AFFINITY="$P_NUM"
++    if [ "$D_NUM" -gt 1 ]; then
++        for ((i=1; i<D_NUM; i++)); do
++            DECODE_AFFINITY="${DECODE_AFFINITY},$((P_NUM + i))"
++        done
++    fi
++    
++    # Set tp values (P and DECODE use their respective TP counts)
++    PREFILL_TP="$P_NUM"
++    DECODE_TP="$D_NUM"
++}
++
+ # Hosts / ports
+ PREFILL_HOST=${PREFILL_HOST:-"localhost"}
+ PREFILL_PORT=${PREFILL_PORT:-8100}
+@@ -12,20 +52,25 @@ PROXY_PORT=${PROXY_PORT:-8192}
+ BASELINE_HOST=${BASELINE_HOST:-"localhost"}
+ BASELINE_PORT=${BASELINE_PORT:-9290}
+ 
++# TP configuration parameter (new)
++TP_CONFIG=${TP_CONFIG:-"1P1D"}
++parse_tp_config "$TP_CONFIG"
++
++# Extra command parameters
++EXTRA_CMD=${EXTRA_CMD:-""}
+ 
+-# Model to run.
++# Model to run
+ MODEL_NAME=${MODEL_NAME:-"Qwen/Qwen3-0.6B"}
+ MAX_MODEL_LEN=${MAX_MODEL_LEN:-1024}
+ BLOCK_SIZE=${BLOCK_SIZE:-64}
+ 
+-
+-# execution env
++# Execution environment
+ GIT_ROOT=$(git rev-parse --show-toplevel)
+ EXP_ROOT="${GIT_ROOT}/tests/v1/kv_connector/nixl_integration"
+ 
+ OUTPUT_FILE=${OUTPUT_FILE:-"${EXP_ROOT}/.xpu_accuracy_test_outputs.txt"}
+ 
+-# Trap the SIGINT signal (triggered by Ctrl+C)
++# Trap SIGINT signal (triggered by Ctrl+C)
+ trap 'kill $(jobs -pr)' SIGINT SIGTERM EXIT
+ 
+ cleanup() {
+@@ -44,8 +89,9 @@ wait_for_server() {
+ }
+ 
+ launch_baseline() {
++  # BASELINE uses total TP count (P + D) and all tiles
+   BASELINE_BASE_CMD="
+-  ZE_AFFINITY_MASK=0 \
++  ZE_AFFINITY_MASK=${BASELINE_AFFINITY} \
+   VLLM_USE_V1=1 \
+   VLLM_WORKER_MULTIPROC_METHOD=spawn \
+   VLLM_ENABLE_V1_MULTIPROCESSING=1 vllm serve $MODEL_NAME \
+@@ -53,13 +99,13 @@ launch_baseline() {
+       --port ${BASELINE_PORT} \
+       --max-model-len ${MAX_MODEL_LEN}\
+       --seed 42 \
+-      -tp 1 \
++      -tp ${TOTAL_TP} \
+       --block-size ${BLOCK_SIZE} \
+       --gpu-memory-utilization 0.8 \
+       --disable-log-requests \
+       --dtype float16 \
+-      --enforce-eager"
+-  echo ${BASELINE_BASE_CMD}      
++      --enforce-eager ${EXTRA_CMD}"
++  echo ${BASELINE_BASE_CMD}
+   bash -c "${BASELINE_BASE_CMD}" &
+   sleep 10
+   wait_for_server ${BASELINE_HOST} ${BASELINE_PORT}
+@@ -67,7 +113,7 @@ launch_baseline() {
+ 
+ launch_pd() {
+   PREFILL_BASE_CMD="
+-  ZE_AFFINITY_MASK=0 \
++  ZE_AFFINITY_MASK=${PREFILL_AFFINITY} \
+   VLLM_MULTIPROC_EXECUTE_MODEL_TIMEOUT_S=200 \
+   VLLM_USE_V1=1 \
+   VLLM_NIXL_SIDE_CHANNEL_HOST=${PREFILL_HOST} \
+@@ -81,14 +127,13 @@ launch_pd() {
+       --block-size ${BLOCK_SIZE} \
+       --enforce-eager \
+       --dtype float16 \
+-      -tp 1 \
++      -tp ${PREFILL_TP} \
+       --gpu-memory-utilization 0.8 \
+       --disable-log-requests \
+-      --kv-transfer-config '{\"kv_connector\":\"NixlConnector\",\"kv_role\":\"kv_both\",\"kv_buffer_device\":\"cpu\"}'"
+-
++      --kv-transfer-config '{\"kv_connector\":\"NixlConnector\",\"kv_role\":\"kv_both\",\"kv_buffer_device\":\"cpu\"}' ${EXTRA_CMD}"
+ 
+   DECODE_BASE_CMD="
+-  ZE_AFFINITY_MASK=1 \
++  ZE_AFFINITY_MASK=${DECODE_AFFINITY} \
+   VLLM_MULTIPROC_EXECUTE_MODEL_TIMEOUT_S=200 \
+   VLLM_USE_V1=1 \
+   VLLM_WORKER_MULTIPROC_METHOD=spawn \
+@@ -99,11 +144,11 @@ launch_pd() {
+       --seed 42 \
+       --block-size ${BLOCK_SIZE} \
+       --enforce-eager \
+-      -tp 1 \
++      -tp ${DECODE_TP} \
+       --dtype float16 \
+       --gpu-memory-utilization 0.8 \
+       --disable-log-requests \
+-      --kv-transfer-config '{\"kv_connector\":\"NixlConnector\",\"kv_role\":\"kv_both\",\"kv_buffer_device\":\"cpu\"}'"
++      --kv-transfer-config '{\"kv_connector\":\"NixlConnector\",\"kv_role\":\"kv_both\",\"kv_buffer_device\":\"cpu\"}' ${EXTRA_CMD}"
+ 
+   echo ${PREFILL_BASE_CMD}
+   echo ${DECODE_BASE_CMD}
+@@ -125,7 +170,7 @@ launch_pd_proxy(){
+   --prefiller-host ${PREFILL_HOST} --prefiller-port ${PREFILL_PORT} \
+   --decoder-host ${DECODE_HOST} --decoder-port ${DECODE_PORT} \
+   --host=${PROXY_HOST} --port ${PROXY_PORT}"
+-  echo ${PROXY_BASE_CMD} 
++  echo ${PROXY_BASE_CMD}
+   bash -c "${PROXY_BASE_CMD}" &
+   sleep 2
+ }
+@@ -137,14 +182,14 @@ run_tests(){
+ }
+ 
+ 
+-# run non-disagg. baseline & save outputs
++# Run non-disaggregated baseline & save outputs
+ launch_baseline
+ run_tests "http://${BASELINE_HOST}:${BASELINE_PORT}" "baseline"
+ cleanup
+ sleep 10
+ 
+ 
+-# run disagg. & do exact-match with the outputs from baseline
++# Run disaggregated mode & do exact-match with outputs from baseline
+ launch_pd
+ launch_pd_proxy
+ run_tests "http://${PROXY_HOST}:${PROXY_PORT}" "disagg"

@@ -1,0 +1,4 @@
+MICROBENCHMARK,python -m benchmark_cutlass_flash_attn_decode
+MICROBENCHMARK,python -m benchmark_cutlass_flash_attn_varlen
+MICROBENCHMARK,python -m benchmark_cutlass_fused_moe
+MICROBENCHMARK,python -m benchmark_gemm_onednn

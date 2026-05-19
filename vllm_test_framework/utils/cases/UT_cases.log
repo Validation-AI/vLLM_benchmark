@@ -1,0 +1,16 @@
+pytest -s -v tests/v1/e2e/test_correctness_sliding_window.py
+VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn pytest -s -v tests/v1/e2e/test_spec_decode.py
+pytest -v -s tests/v1/core
+pytest -v -s tests/v1/engine
+pytest -v -s tests/v1/sample --ignore=tests/v1/sample/test_logprobs.py --ignore=tests/v1/sample/test_logprobs_e2e.py
+pytest -v -s tests/v1/worker --ignore=tests/v1/worker/test_gpu_model_runner.py
+pytest -v -s tests/v1/structured_output
+pytest -v -s tests/v1/spec_decode --ignore=tests/v1/spec_decode/test_max_len.py --ignore=tests/v1/spec_decode/test_eagle.py
+pytest -v -s tests/v1/kv_connector/unit --ignore=tests/v1/kv_connector/unit/test_multi_connector.py --ignore=tests/v1/kv_connector/unit/test_nixl_connector.py
+pytest -v -s tests/v1/test_serial_utils.py
+pytest -v -s tests/v1/test_utils.py
+pytest -v -s tests/v1/test_metrics_reader.py
+
+FOR_TEST='pytest ' VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn python3 examples/offline_inference/multilora_inference.py
+#FOR_TEST='pytest ' VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn vllm bench throughput --model meta-llama/Llama-2-7b-hf --backend vllm --dataset ./ShareGPT_V3_unfiltered_cleaned_split.json --num-prompts 1000 --max-loras 1 --max-lora-rank 8 --enable-lora --enforce-eager --lora-path "yard1/llama-2-7b-sql-lora-test"
+FOR_TEST='pytest ' VLLM_WORKER_MULTIPROC_METHOD=spawn vllm bench throughput --model meta-llama/Llama-3.2-3B-Instruct --backend vllm --max-model-len 124032 --dataset ./ShareGPT_V3_unfiltered_cleaned_split.json --num-prompts 1000 --max-loras 1 --max-lora-rank 8 --enable-lora --enforce-eager --lora-path "jeeejeee/llama32-3b-text2sql-spider" 

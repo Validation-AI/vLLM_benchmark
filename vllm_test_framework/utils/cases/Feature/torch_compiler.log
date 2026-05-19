@@ -1,0 +1,42 @@
+#Performance
+Specify,meta-llama/Llama-3.1-8B-Instruct,default,dummy,TP1,1024/4096,1-30,inf,"","--trust-remote-code  --gpu-memory-util=0.9 --no-enable-prefix-caching --max-num-batched-tokens=8192     --max-model-len=6000 --block-size 64",vllm,BMG,performance,NAN,serving
+Specify,meta-llama/Llama-3.1-8B-Instruct,default,dummy,TP1,4096/1024,1-30,inf,"","--trust-remote-code  --gpu-memory-util=0.9 --no-enable-prefix-caching --max-num-batched-tokens=8192     --max-model-len=6000 --block-size 64",vllm,BMG,performance,NAN,serving
+
+Specify,Qwen/Qwen3-32B,default,dummy,TP4,1024/4096,1-30,inf,"","--trust-remote-code  --gpu-memory-util=0.9 --no-enable-prefix-caching --max-num-batched-tokens=8192     --max-model-len=6000 --block-size 64",vllm,BMG,performance,NAN,serving
+Specify,Qwen/Qwen3-32B,default,dummy,TP4,4096/1024,1-30,inf,"","--trust-remote-code  --gpu-memory-util=0.9 --no-enable-prefix-caching --max-num-batched-tokens=8192     --max-model-len=6000 --block-size 64",vllm,BMG,performance,NAN,serving
+
+#TP+EP
+Specify,Qwen/Qwen3-30B-A3B-Instruct-2507,default,dummy,EP4,4096/1024,1-30,inf,"","--trust-remote-code  --gpu-memory-util=0.9 --no-enable-prefix-caching --max-num-batched-tokens=8192   --disable-log-requests  --max-model-len=6000 --block-size 64 --enable-expert-parallel",vllm,BMG,performance,NAN,serving
+Specify,Qwen/Qwen3-30B-A3B-Instruct-2507,default,dummy,EP4,1024/4096,1-30,inf,"","--trust-remote-code  --gpu-memory-util=0.9 --no-enable-prefix-caching --max-num-batched-tokens=8192   --disable-log-requests  --max-model-len=6000 --block-size 64 --enable-expert-parallel",vllm,BMG,performance,NAN,serving
+
+Specify,Qwen/Qwen3.5-9B,default,dummy,TP1,1024/4096,1-30,inf,"","--trust-remote-code  --gpu-memory-util=0.9 --no-enable-prefix-caching --max-num-batched-tokens=8192     --max-model-len=6000 --block-size 64",vllm,BMG,performance,NAN,serving
+Specify,Qwen/Qwen3.5-9B,default,dummy,TP1,4096/1024,1-30,inf,"","--trust-remote-code  --gpu-memory-util=0.9 --no-enable-prefix-caching --max-num-batched-tokens=8192     --max-model-len=6000 --block-size 64",vllm,BMG,performance,NAN,serving
+
+#TP+EP
+Specify,Qwen/Qwen3.5-35B-A3B,default,dummy,TP4,1024/4096,1-30,inf,"","--trust-remote-code  --gpu-memory-util=0.9 --no-enable-prefix-caching --max-num-batched-tokens=8192     --max-model-len=6000 --block-size 64",vllm,BMG,performance,NAN,serving
+Specify,Qwen/Qwen3.5-35B-A3B,default,dummy,EP4,4096/1024,1-30,inf,"","--trust-remote-code  --gpu-memory-util=0.9 --no-enable-prefix-caching --max-num-batched-tokens=8192   --disable-log-requests  --max-model-len=6000 --block-size 64 --enable-expert-parallel",vllm,BMG,performance,NAN,serving
+
+
+#DP+EP
+Specify,deepseek-ai/DeepSeek-V2-Lite,default,dummy,EP2xDP2,4096/1024,1-30,inf,"","--trust-remote-code  --gpu-memory-util=0.9 --no-enable-prefix-caching --max-num-batched-tokens=8192   --disable-log-requests  --max-model-len=6000 --block-size 64 --enable-expert-parallel --data-parallel-size 2",vllm,BMG,performance,NAN,serving
+Specify,deepseek-ai/DeepSeek-V2-Lite,default,dummy,EP2xDP2,1024/4096,1-30,inf,"","--trust-remote-code  --gpu-memory-util=0.9 --no-enable-prefix-caching --max-num-batched-tokens=8192   --disable-log-requests  --max-model-len=6000 --block-size 64 --enable-expert-parallel --data-parallel-size 2",vllm,BMG,performance,NAN,serving
+
+
+Specify,Qwen/Qwen2.5-VL-7B-Instruct,default,random-mm,TP1,4096/1024,1-30,inf,"IMAGE_SIZE=224","--trust-remote-code --gpu-memory-util=0.9 --no-enable-prefix-caching --max-num-batched-tokens=8192 --disable-log-requests --max-model-len=6000 --block-size 64 --limit-mm-per-prompt '{\"image\": 1}'",openai-chat,BMG,performance,NAN,serving
+Specify,Qwen/Qwen2.5-VL-7B-Instruct,default,random-mm,TP1,1024/4096,1-30,inf,"IMAGE_SIZE=224","--trust-remote-code --gpu-memory-util=0.9 --no-enable-prefix-caching --max-num-batched-tokens=8192 --disable-log-requests --max-model-len=6000 --block-size 64 --limit-mm-per-prompt '{\"image\": 1}'",openai-chat,BMG,performance,NAN,serving
+
+
+Specify,openai/gpt-oss-20b,default,sonnet,EP4,1024/4096,1-30,inf,"","--trust-remote-code  --gpu-memory-util=0.9 --no-enable-prefix-caching --max-num-batched-tokens=8192   --disable-log-requests  --max-model-len=6000 --block-size 64 --enable-expert-parallel",vllm,BMG,performance,NAN,serving
+Specify,openai/gpt-oss-20b,default,sonnet,EP4,4096/1024,1-30,inf,"","--trust-remote-code  --gpu-memory-util=0.9 --no-enable-prefix-caching --max-num-batched-tokens=8192   --disable-log-requests  --max-model-len=6000 --block-size 64 --enable-expert-parallel",vllm,BMG,performance,NAN,serving
+
+
+#accuracy
+Specify,meta-llama/Llama-3.1-8B-Instruct,default,dummy,TP1,128/128,16,inf,"VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn","--trust-remote-code --gpu-memory-util=0.9 --no-enable-prefix-caching --max-num-batched-tokens=8192 --max-model-len=6000 --block-size 64",vllm,BMG,accuracy_serving,NAN,accuracy_serving
+Specify,Qwen/Qwen3-32B,default,dummy,TP4,128/128,16,inf,"VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn","--trust-remote-code --gpu-memory-util=0.9 --no-enable-prefix-caching --max-num-batched-tokens=8192 --max-model-len=6000 --block-size 64",vllm,BMG,accuracy_serving,NAN,accuracy_serving
+Specify,deepseek-ai/DeepSeek-V2-Lite,default,dummy,EP2xDP2,128/128,16,inf,"VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn","--trust-remote-code --gpu-memory-util=0.9 --no-enable-prefix-caching --max-num-batched-tokens=8192 --disable-log-requests --max-model-len=6000 --block-size 64 --enable-expert-parallel --data-parallel-size 2",vllm,BMG,accuracy_serving,NAN,accuracy_serving
+Specify,Qwen/Qwen2.5-VL-7B-Instruct,default,mmmu_val,TP1,128/128,20,inf,"VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn","--trust-remote-code --gpu-memory-util=0.9 --no-enable-prefix-caching --max-num-batched-tokens=8192 --disable-log-requests --max-model-len=6000 --block-size 64 --limit-mm-per-prompt '{\"image\": 1}'",vllm,BMG,accuracy_lmms,NAN,accuracy_lmms
+Specify,Qwen/Qwen3-30B-A3B-Instruct-2507,default,dummy,EP4,128/128,16,inf,"VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn","--trust-remote-code --gpu-memory-util=0.9 --no-enable-prefix-caching --max-num-batched-tokens=8192 --disable-log-requests --max-model-len=6000 --block-size 64 --enable-expert-parallel",vllm,BMG,accuracy_serving,NAN,accuracy_serving
+Specify,Qwen/Qwen3.5-35B-A3B,default,dummy,EP4,128/128,16,inf,"VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn","--trust-remote-code --gpu-memory-util=0.9 --no-enable-prefix-caching --max-num-batched-tokens=8192 --disable-log-requests --max-model-len=6000 --block-size 64 --enable-expert-parallel",vllm,BMG,accuracy_serving,NAN,accuracy_serving
+Specify,Qwen/Qwen3.5-9B,default,dummy,TP1,128/128,16,inf,"VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn","--trust-remote-code --gpu-memory-util=0.9 --no-enable-prefix-caching --max-num-batched-tokens=8192 --max-model-len=6000 --block-size 64",vllm,BMG,accuracy_serving,NAN,accuracy_serving
+Specify,openai/gpt-oss-20b,default,dummy,EP4,128/128,16,inf,"VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn","--trust-remote-code --gpu-memory-util=0.9 --no-enable-prefix-caching --max-num-batched-tokens=8192 --disable-log-requests --max-model-len=6000 --block-size 64 --enable-expert-parallel",vllm,BMG,accuracy_serving,NAN,accuracy_serving
+

@@ -1,0 +1,349 @@
+# Language Models Tests (Standard)
+ pytest -v -s tests/models/language -m 'core_model and (not slow_test)'
+# Language Models Tests (Extra Standard) %N
+ pytest -v -s tests/models/language -m 'core_model and slow_test'  
+# Language Models Tests (Hybrid) %N
+ pytest -v -s tests/models/language/generation -m hybrid_model  
+# Language Models Test (PPL)
+ pytest -v -s tests/models/language/generation_ppl_test
+# Language Models Test (MTEB)
+ pytest -v -s tests/models/language/pooling_mteb_test
+# V1 Spec Decode
+ pytest -v -s -m 'not slow_test' tests/v1/spec_decode
+# V1 Sample + Logits
+ ZE_AFFINITY_MASK=0 pytest -v -s tests/v1/sample
+ ZE_AFFINITY_MASK=0 pytest -v -s tests/v1/logits_processors
+ pytest -v -s tests/v1/test_oracle.py
+ pytest -v -s tests/v1/test_request.py
+ pytest -v -s tests/v1/test_outputs.py
+# V1 Core + KV + Metrics
+ pytest -v -s -m 'not cpu_test' tests/v1/core
+ pytest -v -s tests/v1/executor
+ pytest -v -s tests/v1/kv_offload
+ ZE_AFFINITY_MASK=0 pytest -v -s tests/v1/worker
+ pytest -v -s -m 'not cpu_test' tests/v1/kv_connector/unit --ignore=tests/v1/kv_connector/unit/test_multi_connector.py
+ pytest -v -s -m 'not cpu_test' tests/v1/metrics
+ pytest -v -s tests/entrypoints/openai/correctness/test_lmeval.py -k test_lm_eval_accuracy_v1_engine
+# Regression
+ pytest -v -s tests/test_regression.py
+# Metrics, Tracing (2 GPUs)
+ pytest -v -s tests/v1/tracing
+# Python-only Installation
+FOR_TEST='pytest '  bash tests/standalone_tests/python_only_compile.sh
+# Async Engine, Inputs, Utils, Worker
+ pytest -v -s tests/detokenizer
+ pytest -v -s -m 'not cpu_test' tests/multimodal
+ pytest -v -s tests/utils_
+# Batch Invariance (H100)
+ pytest -v -s tests/v1/determinism/test_batch_invariance.py
+ pytest -v -s tests/v1/determinism/test_rms_norm_batch_invariant.py
+ VLLM_TEST_MODEL=deepseek-ai/DeepSeek-V2-Lite-Chat pytest -v -s tests/v1/determinism/test_batch_invariance.py -k test_v1_generation_is_deterministic_across_batch_sizes_with_needle[TRITON_MLA]
+ VLLM_TEST_MODEL=Qwen/Qwen3-30B-A3B-Thinking-2507-FP8 pytest -v -s tests/v1/determinism/test_batch_invariance.py -k test_v1_generation_is_deterministic_across_batch_sizes_with_needle[FLASH_ATTN]
+# Acceptance Length Test (Large Models)
+ VLLM_ALLOW_INSECURE_SERIALIZATION=1 pytest -v -s tests/v1/spec_decode/test_acceptance_length.py -m slow_test
+# Platform Tests (CUDA)
+ pytest -v -s tests/cuda/test_cuda_context.py
+ pytest -v -s tests/cuda/test_platform_no_cuda_init.py
+# Cudagraph
+ pytest -v -s tests/v1/cudagraph/test_cudagraph_dispatch.py
+ pytest -v -s tests/v1/cudagraph/test_cudagraph_mode.py
+# Multi-Modal Models (Standard) 1: qwen2
+ pytest -v -s tests/models/multimodal/generation/test_common.py -m core_model -k "qwen2"
+ pytest -v -s tests/models/multimodal/generation/test_ultravox.py -m core_model
+# Multi-Modal Models (Standard) 2: qwen3 + gemma
+ pytest -v -s tests/models/multimodal/generation/test_common.py -m core_model -k "qwen3 or gemma"
+ pytest -v -s tests/models/multimodal/generation/test_qwen2_5_vl.py -m core_model
+ pytest -v -s tests/models/multimodal/generation/test_vit_cudagraph.py -m core_model
+# Multi-Modal Models (Standard) 3: llava + qwen2_vl
+ pytest -v -s tests/models/multimodal/generation/test_common.py -m core_model -k 'not qwen2 and not qwen3 and not gemma'
+ pytest -v -s tests/models/multimodal/generation/test_qwen2_vl.py -m core_model
+# Multi-Modal Models (Standard) 4: other + whisper
+ pytest -v -s tests/models/multimodal -m core_model --ignore tests/models/multimodal/generation/test_common.py --ignore tests/models/multimodal/generation/test_ultravox.py --ignore tests/models/multimodal/generation/test_qwen2_5_vl.py --ignore tests/models/multimodal/generation/test_qwen2_vl.py --ignore tests/models/multimodal/generation/test_whisper.py  --ignore tests/models/multimodal/generation/test_memory_leak.py --ignore tests/models/multimodal/processing
+ pytest tests/models/multimodal/generation/test_memory_leak.py -m core_model
+  VLLM_WORKER_MULTIPROC_METHOD=spawn pytest -v -s tests/models/multimodal/generation/test_whisper.py -m core_model
+# Multi-Modal Processor
+ pytest -v -s tests/models/multimodal/processing/test_tensor_schema.py
+# Multi-Modal Accuracy Eval (Small Models)
+ pytest -s -v .buildkite/lm-eval-harness/test_lm_eval_correctness.py --config-list-file=.buildkite/lm-eval-harness/configs/models-mm-small.txt --tp-size=1
+# Multi-Modal Models (Extended Generation 1)
+ pytest -v -s tests/models/multimodal/test_mapping.py
+# Multi-Modal Models (Extended Generation 3)
+ pytest -v -s tests/models/multimodal/generation/test_common.py -m 'split(group=1) and not core_model'
+# Multi-Modal Models (Extended Pooling)
+ pytest -v -s tests/models/multimodal/pooling -m 'not core_model'
+# LoRA TP (Distributed)
+ PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True pytest -v -s -x tests/lora/test_chatglm3_tp.py
+ PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True pytest -v -s -x tests/lora/test_llama_tp.py
+ PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True pytest -v -s -x tests/lora/test_llm_with_multi_loras.py
+ PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True pytest -v -s -x tests/lora/test_olmoe_tp.py
+ PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True pytest -v -s -x tests/lora/test_gptoss_tp.py
+ PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True pytest -v -s -x tests/lora/test_qwen35_densemodel_lora.py
+# Distributed Model Tests (2 GPUs)
+ TARGET_TEST_SUITE=L4 pytest tests/basic_correctness/ -v -s -m 'distributed(num_gpus=2)'
+ ZE_AFFINITY_MASK=0,1 pytest -v -s tests/model_executor/model_loader/test_sharded_state_loader.py -m '(not slow_test)'
+ pytest tests/models/test_transformers.py -v -s -m 'distributed(num_gpus=2)'
+ pytest tests/models/language -v -s -m 'distributed(num_gpus=2)'
+ pytest tests/models/multimodal/generation/test_phi4siglip.py -v -s -m 'distributed(num_gpus=2)'
+ pytest tests/models/multimodal -v -s -m 'distributed(num_gpus=2)' --ignore tests/models/multimodal/generation/test_whisper.py --ignore tests/models/multimodal/generation/test_phi4siglip.py
+ VLLM_WORKER_MULTIPROC_METHOD=spawn pytest tests/models/multimodal/generation/test_whisper.py -v -s -m 'distributed(num_gpus=2)'
+# Quantization
+ VLLM_TEST_FORCE_LOAD_FORMAT=auto pytest -v -s tests/quantization/ --ignore tests/quantization/test_blackwell_moe.py
+# Quantized MoE Test (B200)
+ pytest -s -v tests/quantization/test_blackwell_moe.py
+# Quantized Models Test
+ pytest -v -s tests/models/quantization
+# DeepSeek V2-Lite Accuracy
+FOR_TEST='pytest '  bash .buildkite/scripts/scheduled_integration_test/deepseek_v2_lite_ep_eplb.sh 0.25 200 8010
+# Qwen3-30B-A3B-FP8-block Accuracy
+FOR_TEST='pytest '  bash .buildkite/scripts/scheduled_integration_test/qwen30b_a3b_fp8_block_ep_eplb.sh 0.8 200 8020
+# Qwen3-30B-A3B-FP8-block Accuracy (B200)
+FOR_TEST='pytest '  bash .buildkite/scripts/scheduled_integration_test/qwen30b_a3b_fp8_block_ep_eplb.sh 0.8 200 8020 2 1
+# Qwen3-30B-A3B-FP8 DP4 Async EPLB Accuracy
+FOR_TEST='pytest '  bash .buildkite/scripts/scheduled_integration_test/qwen30b_a3b_fp8_dp4_async_eplb.sh 0.8 200 8050
+# DeepSeek V2-Lite Prefetch Offload Accuracy (H100)
+FOR_TEST='pytest '  bash .buildkite/scripts/scheduled_integration_test/deepseek_v2_lite_prefetch_offload.sh 0.25 200 8030
+# Sequence Parallel Correctness Tests (2 GPUs)
+ VLLM_TEST_CLEAN_GPU_MEMORY=1 pytest -v -s tests/compile/correctness_e2e/test_sequence_parallel.py
+# AsyncTP Correctness Tests (B200)
+ VLLM_TEST_CLEAN_GPU_MEMORY=1 pytest -v -s tests/compile/correctness_e2e/test_async_tp.py
+# Distributed Compile Unit Tests (2xH100)
+ VLLM_TEST_CLEAN_GPU_MEMORY=1 pytest -s -v tests/compile/passes/distributed
+# Fusion and Compile Unit Tests (2xB200)
+ pytest -v -s tests/compile/passes/test_fusion_attn.py -k FLASHINFER
+ pytest -v -s tests/compile/passes/test_mla_attn_quant_fusion.py
+ pytest -v -s tests/compile/passes/test_silu_mul_quant_fusion.py
+ pytest -v -s tests/compile/passes/distributed/test_fusion_all_reduce.py
+ pytest -v -s tests/compile/fullgraph/test_full_graph.py -k test_fp8_kv_scale_compile
+# Fusion E2E Quick (H100)
+ pytest -v -s tests/compile/fusions_e2e/test_tp1_quant.py -k 'inductor_partition and not +rms_norm and not +quant_fp8'
+ pytest -v -s tests/compile/fusions_e2e/test_tp1_quant.py -k 'inductor_partition and not +rms_norm and +quant_fp8 and (qwen3 or deepseek)'
+# Fusion E2E Config Sweep (H100)
+ pytest -v -s tests/compile/fusions_e2e/test_tp1_quant.py -k "llama-3"
+# Fusion E2E Config Sweep (B200)
+ pytest -v -s tests/compile/fusions_e2e/test_tp1_quant.py -k 'inductor_partition and (FLASHINFER and not +rms_norm and (not +quant_fp8 or +quant_fp8 and (qwen3 or deepseek)) or llama-3)'
+# Fusion E2E TP2 Quick (H100)
+ pytest -v -s tests/compile/fusions_e2e/test_tp2_ar_rms.py -k 'inductor_partition and not +rms_norm and (not +quant_fp8 or +quant_fp8 and (qwen3 or deepseek))'
+ pytest -v -s tests/compile/fusions_e2e/test_tp2_async_tp.py -k 'inductor_partition and not +rms_norm and (not +quant_fp8 or +quant_fp8 and (qwen3 or deepseek))'
+# Fusion E2E TP2 AR-RMS Config Sweep (H100)
+ pytest -v -s tests/compile/fusions_e2e/test_tp2_ar_rms.py -k "llama-3"
+# Fusion E2E TP2 AsyncTP Config Sweep (H100)
+ pytest -v -s tests/compile/fusions_e2e/test_tp2_async_tp.py -k "llama-3"
+# Fusion E2E TP2 (B200)
+ pytest -v -s tests/compile/fusions_e2e/test_tp2_ar_rms.py -k '(FLASHINFER and inductor_partition and not +rms_norm and (not +quant_fp8 or +quant_fp8 and (qwen3 or deepseek))) or Llama-3.1-8B-Instruct-FP4'
+ pytest -v -s tests/compile/fusions_e2e/test_tp2_async_tp.py -k 'FLASHINFER and inductor_partition and not +rms_norm and (not +quant_fp8 or +quant_fp8 and (qwen3 or deepseek))'
+# LM Eval Small Models
+ pytest -s -v tests/evals/gsm8k/test_gsm8k_correctness.py --config-list-file=tests/evals/gsm8k/configs/models-small.txt
+# LM Eval Large Models (4 GPUs)(H100)
+ VLLM_USE_DEEP_GEMM=0 pytest -s -v .buildkite/lm-eval-harness/test_lm_eval_correctness.py --config-list-file=.buildkite/lm-eval-harness/configs/models-large-hopper.txt --tp-size=4
+# LM Eval Small Models (B200)
+ pytest -s -v tests/evals/gsm8k/test_gsm8k_correctness.py --config-list-file=tests/evals/gsm8k/configs/models-blackwell.txt
+# LM Eval Qwen3.5 Models (B200)
+ pytest -s -v tests/evals/gsm8k/test_gsm8k_correctness.py --config-list-file=tests/evals/gsm8k/configs/models-qwen35-blackwell.txt
+# LM Eval Large Models (H200)
+ pytest -s -v tests/evals/gsm8k/test_gsm8k_correctness.py --config-list-file=tests/evals/gsm8k/configs/models-h200.txt
+# MoE Refactor Integration Test (H100 - TEMPORARY)
+ pytest -s -v tests/evals/gsm8k/test_gsm8k_correctness.py --config-list-file=tests/evals/gsm8k/configs/moe-refactor/config-h100.txt
+# MoE Refactor Integration Test (B200 - TEMPORARY)
+ pytest -s -v tests/evals/gsm8k/test_gsm8k_correctness.py --config-list-file=tests/evals/gsm8k/configs/moe-refactor/config-b200.txt
+# MoE Refactor Integration Test (B200 DP - TEMPORARY)
+ pytest -s -v tests/evals/gsm8k/test_gsm8k_correctness.py --config-list-file=tests/evals/gsm8k/configs/moe-refactor-dp-ep/config-b200.txt
+# LM Eval TurboQuant KV Cache
+ pytest -s -v tests/evals/gsm8k/test_gsm8k_correctness.py --config-list-file=tests/evals/gsm8k/configs/models-turboquant.txt
+# GPQA Eval (GPT-OSS) (H100)
+ pytest -s -v tests/evals/gpt_oss/test_gpqa_correctness.py --config-list-file=tests/evals/gsm8k/configs/models-h100.txt
+# GPQA Eval (GPT-OSS) (B200)
+ pytest -s -v tests/evals/gpt_oss/test_gpqa_correctness.py --config-list-file=tests/evals/gsm8k/configs/models-b200.txt
+# Distributed Comm Ops
+ pytest -v -s tests/distributed/test_comm_ops.py
+ pytest -v -s tests/distributed/test_shm_broadcast.py
+ pytest -v -s tests/distributed/test_shm_buffer.py
+ pytest -v -s tests/distributed/test_shm_storage.py
+# Distributed DP Tests (2 GPUs)
+ NCCL_CUMEM_HOST_ENABLE=0 TP_SIZE=1 DP_SIZE=2 pytest -v -s tests/v1/distributed/test_async_llm_dp.py
+ NCCL_CUMEM_HOST_ENABLE=0 TP_SIZE=1 DP_SIZE=2 pytest -v -s tests/v1/distributed/test_eagle_dp.py
+ NCCL_CUMEM_HOST_ENABLE=0 TP_SIZE=1 DP_SIZE=2 pytest -v -s tests/v1/distributed/test_external_lb_dp.py
+ NCCL_CUMEM_HOST_ENABLE=0 DP_SIZE=2 pytest -v -s tests/entrypoints/openai/test_multi_api_servers.py
+# Distributed Compile + RPC Tests (2 GPUs)
+ NCCL_CUMEM_HOST_ENABLE=0 pytest -v -s tests/entrypoints/llm/test_collective_rpc.py
+ NCCL_CUMEM_HOST_ENABLE=0 pytest -v -s tests/./compile/fullgraph/test_basic_correctness.py
+ NCCL_CUMEM_HOST_ENABLE=0 pytest -v -s tests/./compile/test_wrapper.py
+# Distributed Torchrun + Shutdown Tests (2 GPUs)
+FOR_TEST='pytest '  NCCL_CUMEM_HOST_ENABLE=0 VLLM_TEST_SAME_HOST=1 torchrun --nproc-per-node=4 tests/distributed/test_same_node.py | grep 'Same node test passed'
+FOR_TEST='pytest '  NCCL_CUMEM_HOST_ENABLE=0 VLLM_TEST_SAME_HOST=1 VLLM_TEST_WITH_DEFAULT_DEVICE_SET=1 torchrun --nproc-per-node=4 tests/distributed/test_same_node.py | grep 'Same node test passed'
+ NCCL_CUMEM_HOST_ENABLE=0 ZE_AFFINITY_MASK=0,1 pytest -v -s tests/v1/shutdown
+ NCCL_CUMEM_HOST_ENABLE=0 pytest -v -s tests/v1/worker/test_worker_memory_snapshot.py
+# Distributed DP Tests (4 GPUs)
+ NCCL_CUMEM_HOST_ENABLE=0 TP_SIZE=2 DP_SIZE=2 pytest -v -s tests/v1/distributed/test_async_llm_dp.py
+ NCCL_CUMEM_HOST_ENABLE=0 TP_SIZE=2 DP_SIZE=2 pytest -v -s tests/v1/distributed/test_eagle_dp.py
+ NCCL_CUMEM_HOST_ENABLE=0 TP_SIZE=2 DP_SIZE=2 pytest -v -s tests/v1/distributed/test_external_lb_dp.py
+ NCCL_CUMEM_HOST_ENABLE=0 TP_SIZE=1 DP_SIZE=4 pytest -v -s tests/v1/distributed/test_internal_lb_dp.py
+ NCCL_CUMEM_HOST_ENABLE=0 TP_SIZE=1 DP_SIZE=4 pytest -v -s tests/v1/distributed/test_hybrid_lb_dp.py
+ NCCL_CUMEM_HOST_ENABLE=0 pytest -v -s tests/v1/engine/test_engine_core_client.py -k test_kv_cache_events_dp
+ NCCL_CUMEM_HOST_ENABLE=0 pytest -v -s tests/distributed/test_utils.py
+# Distributed Compile + Comm (4 GPUs)
+ NCCL_CUMEM_HOST_ENABLE=0 pytest -v -s tests/compile/fullgraph/test_basic_correctness.py
+ NCCL_CUMEM_HOST_ENABLE=0 pytest -v -s tests/distributed/test_pynccl.py
+ NCCL_CUMEM_HOST_ENABLE=0 pytest -v -s tests/distributed/test_events.py
+ NCCL_CUMEM_HOST_ENABLE=0 pytest -v -s tests/distributed/test_symm_mem_allreduce.py
+ NCCL_CUMEM_HOST_ENABLE=0 pytest -v -s tests/distributed/test_multiproc_executor.py -k test_multiproc_executor_multi_node
+# Distributed Tests (4 GPUs)(A100)
+ pytest -v -s tests/distributed/test_custom_all_reduce.py
+FOR_TEST='pytest '  torchrun --nproc_per_node=2 tests/distributed/test_ca_buffer_sharing.py
+ TARGET_TEST_SUITE=A100 pytest tests/basic_correctness/ -v -s -m 'distributed(num_gpus=2)'
+ pytest -v -s -x tests/lora/test_mixtral.py
+# Distributed Tests (2 GPUs)(H100)
+ pytest -v -s tests/distributed/test_context_parallel.py
+ pytest -v -s tests/v1/distributed/test_dbo.py
+ VLLM_ALLOW_INSECURE_SERIALIZATION=1 pytest -v -s tests/distributed/test_weight_transfer.py
+ pytest -v -s tests/distributed/test_packed_tensor.py
+# Pipeline + Context Parallelism (4 GPUs)
+ pytest -v -s tests/distributed/test_pp_cudagraph.py
+ pytest -v -s tests/distributed/test_pipeline_parallel.py
+# RayExecutorV2 (4 GPUs)
+ VLLM_USE_RAY_V2_EXECUTOR_BACKEND=1 NCCL_CUMEM_HOST_ENABLE=0 pytest -v -s tests/distributed/test_ray_v2_executor.py
+ VLLM_USE_RAY_V2_EXECUTOR_BACKEND=1 NCCL_CUMEM_HOST_ENABLE=0 pytest -v -s tests/distributed/test_ray_v2_executor_e2e.py
+ VLLM_USE_RAY_V2_EXECUTOR_BACKEND=1 NCCL_CUMEM_HOST_ENABLE=0 pytest -v -s tests/distributed/test_pipeline_parallel.py -k "ray"
+ VLLM_USE_RAY_V2_EXECUTOR_BACKEND=1 NCCL_CUMEM_HOST_ENABLE=0 TARGET_TEST_SUITE=L4 pytest -v -s tests/basic_correctness/test_basic_correctness.py -k "ray"
+# Docker Build Metadata
+ pytest -v -s tests/tools/test_docker_build_metadata_args.py
+# Ray Dependency Compatibility Check
+FOR_TEST='pytest '  bash .buildkite/scripts/check-ray-compatibility.sh
+# vLLM IR Tests
+ pytest -v -s tests/kernels/ir
+# Entrypoints Unit Tests
+ pytest -v -s tests/entrypoints/openai/tool_parsers
+ pytest -v -s tests/entrypoints/ --ignore=tests/entrypoints/llm --ignore=tests/entrypoints/rpc --ignore=tests/entrypoints/sleep --ignore=tests/entrypoints/serve/instrumentator --ignore=tests/entrypoints/openai --ignore=tests/entrypoints/offline_mode --ignore=tests/entrypoints/test_chat_utils.py  --ignore=tests/entrypoints/pooling
+# Entrypoints Integration (LLM)
+ pytest -v -s tests/entrypoints/llm --ignore=tests/entrypoints/llm/test_generate.py --ignore=tests/entrypoints/llm/test_collective_rpc.py
+ pytest -v -s tests/entrypoints/llm/test_generate.py
+ pytest -v -s tests/entrypoints/offline_mode
+# Entrypoints Integration (API Server openai - Part 1)
+ pytest -v -s tests/entrypoints/openai/chat_completion --ignore=tests/entrypoints/openai/chat_completion/test_chat_with_tool_reasoning.py --ignore=tests/entrypoints/openai/chat_completion/test_oot_registration.py
+# Entrypoints Integration (API Server openai - Part 2)
+ pytest -v -s tests/entrypoints/openai/completion --ignore=tests/entrypoints/openai/completion/test_tensorizer_entrypoint.py
+ pytest -v -s tests/entrypoints/openai/speech_to_text/
+ pytest -v -s tests/entrypoints/test_chat_utils.py
+# Entrypoints Integration (API Server 2)
+ pytest -v -s tests/entrypoints/serve/instrumentator
+ PYTHONPATH=. pytest -v -s tests/entrypoints/rpc
+ pytest -v -s tests/tool_use
+# Entrypoints Integration (Pooling)
+ pytest -v -s tests/entrypoints/pooling
+# Entrypoints Integration (Responses API)
+ pytest -v -s tests/entrypoints/openai/responses
+# OpenAI API Correctness
+ pytest -s tests/entrypoints/openai/correctness/
+# V1 attention (H100)
+ pytest -v -s tests/v1/attention
+# Plugin Tests (2 GPUs)
+FOR_TEST="pytest2" pytest -v -s tests/plugins_tests/test_platform_plugins.py
+ pytest -v -s tests/plugins_tests/test_io_processor_plugins.py
+FOR_TEST="pytest2" pytest -v -s tests/plugins_tests/test_terratorch_io_processor_plugins.py
+FOR_TEST="pytest2" pytest -v -s tests/plugins_tests/test_bge_m3_sparse_io_processor_plugins.py
+FOR_TEST="pytest2" pytest -v -s tests/plugins_tests/test_stats_logger_plugins.py
+ pytest -v -s tests/plugins_tests/test_scheduler_plugins.py
+FOR_TEST="pytest2" pytest -v -s tests/distributed/test_distributed_oot.py
+FOR_TEST="pytest2" pytest -v -s tests/entrypoints/openai/chat_completion/test_oot_registration.py
+FOR_TEST="pytest2" pytest -v -s tests/models/test_oot_registration.py
+FOR_TEST="pytest2" pytest -v -s tests/plugins/lora_resolvers
+# Weight Loading Multiple GPU
+FOR_TEST='pytest '  bash tests/weight_loading/run_model_weight_loading_test.sh -c tests/weight_loading/models.txt
+# Benchmarks CLI Test
+ pytest -v -s tests/benchmarks/
+# Spec Decode Eagle
+ pytest -v -s tests/v1/e2e/spec_decode -k "eagle_correctness"
+# Spec Decode Speculators + MTP
+ ZE_AFFINITY_MASK=0 pytest -v -s tests/v1/e2e/spec_decode -k "speculators or mtp_correctness"
+# Spec Decode Ngram + Suffix
+ ZE_AFFINITY_MASK=0 pytest -v -s tests/v1/e2e/spec_decode -k "ngram or suffix"
+# Spec Decode Draft Model
+ pytest -v -s tests/v1/e2e/spec_decode -k "draft_model or no_sync or batch_inference"
+# DFlash Speculators Correctness
+ VLLM_ALLOW_INSECURE_SERIALIZATION=1 pytest -v -s tests/v1/spec_decode/test_speculators_dflash.py -m slow_test
+# Engine
+ pytest -v -s tests/engine tests/test_sequence.py tests/test_config.py tests/test_logger.py tests/test_vllm_port.py
+# Engine (1 GPU)
+ ZE_AFFINITY_MASK=0 pytest -v -s tests/v1/engine/test_preprocess_error_handling.py
+ ZE_AFFINITY_MASK=0 pytest -v -s tests/v1/engine --ignore tests/v1/engine/test_preprocess_error_handling.py
+# e2e Scheduling (1 GPU)
+ ZE_AFFINITY_MASK=0 pytest -v -s tests/v1/e2e/general/test_async_scheduling.py
+# e2e Core (1 GPU)
+ ZE_AFFINITY_MASK=0 pytest -v -s tests/v1/e2e/general --ignore tests/v1/e2e/general/test_async_scheduling.py
+# V1 e2e (2 GPUs)
+ pytest -v -s tests/v1/e2e/spec_decode/test_spec_decode.py -k "tensor_parallelism"
+# V1 e2e (4 GPUs)
+ pytest -v -s tests/v1/e2e/spec_decode/test_spec_decode.py -k "eagle_correctness_heavy"
+# V1 e2e (4xH100)
+ pytest -v -s tests/v1/e2e/test_hybrid_chunked_prefill.py
+# Distributed NixlConnector PD accuracy (4 GPUs)
+FOR_TEST='pytest '  bash tests/v1/kv_connector/nixl_integration/config_sweep_accuracy_test.sh
+# Distributed FlashInfer NixlConnector PD accuracy (4 GPUs)
+FOR_TEST='pytest '  FLASHINFER=1 bash tests/v1/kv_connector/nixl_integration/config_sweep_accuracy_test.sh
+# DP EP Distributed NixlConnector PD accuracy tests (4 GPUs)
+FOR_TEST='pytest '  DP_EP=1 bash tests/v1/kv_connector/nixl_integration/config_sweep_accuracy_test.sh
+# CrossLayer KV layout Distributed NixlConnector PD accuracy tests (4 GPUs)
+FOR_TEST='pytest '  CROSS_LAYERS_BLOCKS=True bash tests/v1/kv_connector/nixl_integration/config_sweep_accuracy_test.sh
+# Hybrid SSM NixlConnector PD accuracy tests (4 GPUs)
+FOR_TEST='pytest '  HYBRID_SSM=1 bash tests/v1/kv_connector/nixl_integration/config_sweep_accuracy_test.sh
+# MultiConnector (Nixl+Offloading) PD accuracy (2 GPUs)
+FOR_TEST='pytest '  bash tests/v1/kv_connector/nixl_integration/run_multi_connector_accuracy_test.sh
+# NixlConnector PD + Spec Decode acceptance (2 GPUs)
+FOR_TEST='pytest '  bash tests/v1/kv_connector/nixl_integration/spec_decode_acceptance_test.sh
+# MultiConnector (Nixl+Offloading) PD edge cases (2 GPUs)
+FOR_TEST='pytest '  bash tests/v1/kv_connector/nixl_integration/run_multi_connector_edge_case_test.sh
+# Samplers Test
+ VLLM_USE_FLASHINFER_SAMPLER=0 pytest -v -s tests/samplers
+ VLLM_USE_FLASHINFER_SAMPLER=1 pytest -v -s tests/samplers
+# Basic Models Tests (Initialization)
+ pytest -v -s tests/models/test_initialization.py -k test_can_initialize_small_subset
+# Basic Models Tests (Extra Initialization) %N
+ pytest -v -s tests/models/test_initialization.py -k 'not test_can_initialize_small_subset'  
+# Basic Models Tests (Other)
+ pytest -v -s tests/models/test_terratorch.py tests/models/test_transformers.py tests/models/test_registry.py
+# Transformers Nightly Models
+ pytest -v -s tests/models/test_initialization.py
+ pytest -v -s tests/models/test_transformers.py
+ pytest -v -s tests/models/multimodal/test_mapping.py
+# EPLB Algorithm
+ pytest -v -s tests/distributed/test_eplb_algo.py
+ pytest -v -s tests/distributed/test_eplb_utils.py
+# EPLB Execution
+ pytest -v -s tests/distributed/test_eplb_execute.py
+ pytest -v -s tests/distributed/test_eplb_spec_decode.py
+# Elastic EP Scaling Test
+ pytest -v -s tests/distributed/test_elastic_ep.py
+# Model Runner V2 Core Tests
+ VLLM_USE_V2_MODEL_RUNNER=1 pytest -v -s tests/v1/engine/test_llm_engine.py -k 'not test_engine_metrics'
+ VLLM_USE_V2_MODEL_RUNNER=1 ENFORCE_EAGER=1 pytest -v -s tests/v1/e2e/general/test_async_scheduling.py -k 'not ngram'
+ VLLM_USE_V2_MODEL_RUNNER=1 pytest -v -s tests/v1/e2e/general/test_context_length.py
+ VLLM_USE_V2_MODEL_RUNNER=1 pytest -v -s tests/v1/e2e/general/test_min_tokens.py
+ VLLM_USE_V2_MODEL_RUNNER=1 pytest -v -s tests/entrypoints/llm/test_struct_output_generate.py -k "xgrammar and not speculative_config6 and not speculative_config7 and not speculative_config8 and not speculative_config0"
+# Model Runner V2 Distributed (2 GPUs)
+ VLLM_USE_V2_MODEL_RUNNER=1 TARGET_TEST_SUITE=L4 pytest -v -s tests/basic_correctness/test_basic_correctness.py -m 'distributed(num_gpus=2)' -k 'not ray and not True'
+ VLLM_USE_V2_MODEL_RUNNER=1 NCCL_CUMEM_HOST_ENABLE=0 TP_SIZE=1 DP_SIZE=2 pytest -v -s tests/v1/distributed/test_async_llm_dp.py -k 'not ray'
+ VLLM_USE_V2_MODEL_RUNNER=1 NCCL_CUMEM_HOST_ENABLE=0 TP_SIZE=1 DP_SIZE=2 pytest -v -s tests/v1/distributed/test_eagle_dp.py
+# Model Runner V2 Pipeline Parallelism (4 GPUs)
+ VLLM_USE_V2_MODEL_RUNNER=1 pytest -v -s tests/distributed/test_pipeline_parallel.py -k 'not ray and not Jamba'
+ VLLM_USE_V2_MODEL_RUNNER=1 pytest -v -s tests/distributed/test_pp_cudagraph.py -k 'not ray'
+# Model Runner V2 Spec Decode
+ VLLM_USE_V2_MODEL_RUNNER=1 pytest -v -s tests/v1/spec_decode/test_max_len.py -k "eagle or mtp"
+ VLLM_USE_V2_MODEL_RUNNER=1 pytest -v -s tests/v1/spec_decode/test_probabilistic_rejection_sampler_utils.py
+ VLLM_USE_V2_MODEL_RUNNER=1 pytest -v -s tests/v1/spec_decode/test_synthetic_rejection_sampler_utils.py
+ VLLM_USE_V2_MODEL_RUNNER=1 pytest -v -s tests/v1/e2e/spec_decode/test_spec_decode.py -k "eagle or mtp"
+# Basic Correctness
+ pytest -v -s tests/basic_correctness/test_cumem.py
+ pytest -v -s tests/basic_correctness/test_basic_correctness.py
+ pytest -v -s tests/basic_correctness/test_cpu_offload.py
+# Model Executor
+# pytest -v -s tests/model_executor -m '(not slow_test)' --ignore tests/model_executor/layers/test_rocm_unquantized_gemm.py
+ pytest -v -s tests/entrypoints/openai/completion/test_tensorizer_entrypoint.py
+# PyTorch Compilation Unit Tests (H100)
+pytest -s -v tests/compile/h100/test_startup.py
+# PyTorch Compilation Passes Unit Tests
+ pytest -s -v tests/compile/passes --ignore tests/compile/passes/distributed
+# PyTorch Fullgraph Smoke Test
+pytest -s -v tests/compile/fullgraph/test_multiple_graphs.py tests/compile/fullgraph/test_toy_llama.py tests/compile/fullgraph/test_basic_correctness.py tests/compile/fullgraph/test_multimodal_compile.py tests/compile/fullgraph/test_simple.py tests/compile/fullgraph/test_full_cudagraph.py
+# PyTorch Fullgraph
+ pytest -v -s tests/compile/fullgraph/test_full_graph.py -k 'not test_fp8_kv_scale_compile'
+# Pytorch Nightly Dependency Override Check
+FOR_TEST='pytest '  bash tests/standalone_tests/pytorch_nightly_dependency.sh

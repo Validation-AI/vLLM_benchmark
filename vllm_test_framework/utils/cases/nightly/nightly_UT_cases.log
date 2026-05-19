@@ -1,0 +1,26 @@
+pytest -s -v tests/v1/e2e/general/test_correctness_sliding_window.py
+VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn pytest -s -v tests/v1/e2e/spec_decode/test_spec_decode.py
+pytest -v -s tests/v1/core
+pytest -v -s tests/v1/engine
+pytest -v -s tests/v1/sample --ignore=tests/v1/sample/test_logprobs.py --ignore=tests/v1/sample/test_logprobs_e2e.py
+pytest -v -s tests/v1/worker --ignore=tests/v1/worker/test_gpu_model_runner.py
+pytest -v -s tests/v1/structured_output
+pytest -v -s tests/v1/spec_decode --ignore=tests/v1/spec_decode/test_max_len.py --ignore=tests/v1/spec_decode/test_eagle.py
+pytest -v -s v1/kv_connector/unit --ignore=v1/kv_connector/unit/test_multi_connector.py --ignore=v1/kv_connector/unit/test_example_connector.py --ignore=v1/kv_connector/unit/test_lmcache_integration.py --ignore=v1/kv_connector/unit/test_hf3fs_client.py --ignore=v1/kv_connector/unit/test_hf3fs_connector.py --ignore=v1/kv_connector/unit/test_hf3fs_metadata_server.py
+pytest -v -s tests/v1/test_serial_utils.py
+pytest -v -s tests/v1/worker/test_utils.py
+pytest -v -s tests/v1/structured_output/test_utils.py
+pytest -v -s tests/v1/metrics/test_metrics_reader.py
+
+
+
+pytest -s -v tests/v1/e2e/general/test_pooling_chunked_prefill.py::test_pooling_chunked_prefill
+pytest -s -v tests/v1/e2e/general/test_pooling_chunked_prefill.py::test_pooling_prefix_cache
+pytest -s -v tests/entrypoints/pooling/basic/test_encode.py
+pytest -s -v tests/entrypoints/pooling/embed/test_offline.py
+pytest -s -v tests/entrypoints/pooling/scoring/test_bi_encoder_offline.py
+pytest -s -v tests/entrypoints/pooling/scoring/test_cross_encoder_offline.py
+pytest -s -v tests/entrypoints/pooling/scoring/test_late_interaction_offline.py
+pytest -s -v tests/entrypoints/pooling/embed/test_correctness_mteb.py::test_mteb_embed
+pytest -s -v tests/entrypoints/pooling/scoring/test_cross_encoder_correctness_mteb.py::test_mteb_score
+pytest -s -v tests/entrypoints/pooling/scoring/test_cross_encoder_correctness_mteb.py::test_mteb_rerank

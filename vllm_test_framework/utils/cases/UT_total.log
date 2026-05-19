@@ -1,0 +1,49 @@
+# Python-only Installation
+FOR_TEST='pytest '  bash tests/standalone_tests/python_only_compile.sh
+# Quantized MoE Test (B200)
+pytest -s -v tests/quantization/test_blackwell_moe.py
+# Sequence Parallel Correctness Tests (2 GPUs)
+VLLM_TEST_CLEAN_GPU_MEMORY=1 pytest -v -s tests/compile/correctness_e2e/test_sequence_parallel.py
+# Distributed Compile Unit Tests (2xH100)
+VLLM_TEST_CLEAN_GPU_MEMORY=1 pytest -s -v tests/compile/passes/distributed
+# Fusion and Compile Unit Tests (2xB200)
+pytest -v -s tests/compile/passes/test_fusion_attn.py -k FLASHINFER
+pytest -v -s tests/compile/passes/test_mla_attn_quant_fusion.py
+pytest -v -s tests/compile/passes/test_silu_mul_quant_fusion.py
+pytest -v -s tests/compile/passes/distributed/test_fusion_all_reduce.py
+pytest -v -s tests/compile/fullgraph/test_full_graph.py -k test_fp8_kv_scale_compile
+# Fusion E2E Quick (H100)
+pytest -v -s tests/compile/fusions_e2e/test_tp1_quant.py -k "inductor_partition and not +rms_norm and not +quant_fp8"
+pytest -v -s tests/compile/fusions_e2e/test_tp1_quant.py -k "inductor_partition and not +rms_norm and +quant_fp8 and (qwen3 or deepseek)"
+# Fusion E2E Config Sweep (H100)
+pytest -v -s tests/compile/fusions_e2e/test_tp1_quant.py -k "llama-3"
+# Fusion E2E Config Sweep (B200)
+pytest -v -s tests/compile/fusions_e2e/test_tp1_quant.py -k 'inductor_partition and (FLASHINFER and not +rms_norm and (not +quant_fp8 or +quant_fp8 and (qwen3 or deepseek)) or llama-3)'
+# Fusion E2E TP2 Quick (H100)
+pytest -v -s tests/compile/fusions_e2e/test_tp2_ar_rms.py -k "inductor_partition and not +rms_norm and (not +quant_fp8 or +quant_fp8 and (qwen3 or deepseek))"
+pytest -v -s tests/compile/fusions_e2e/test_tp2_async_tp.py -k "inductor_partition and not +rms_norm and (not +quant_fp8 or +quant_fp8 and (qwen3 or deepseek))"
+# Fusion E2E TP2 AR-RMS Config Sweep (H100)
+pytest -v -s tests/compile/fusions_e2e/test_tp2_ar_rms.py -k "llama-3"
+# Fusion E2E TP2 AsyncTP Config Sweep (H100)
+pytest -v -s tests/compile/fusions_e2e/test_tp2_async_tp.py -k "llama-3"
+# Fusion E2E TP2 (B200)
+pytest -v -s tests/compile/fusions_e2e/test_tp2_ar_rms.py -k "(FLASHINFER and inductor_partition and not +rms_norm and (not +quant_fp8 or +quant_fp8 and (qwen3 or deepseek))) or Llama-3.1-8B-Instruct-FP4"
+pytest -v -s tests/compile/fusions_e2e/test_tp2_async_tp.py -k "FLASHINFER and inductor_partition and not +rms_norm and (not +quant_fp8 or +quant_fp8 and (qwen3 or deepseek))"
+pytest -s -v tests/evals/gsm8k/test_gsm8k_correctness.py --config-list-file=tests/evals/gsm8k/configs/moe-refactor/config-h100.txt
+pytest -s -v tests/evals/gsm8k/test_gsm8k_correctness.py --config-list-file=tests/evals/gsm8k/configs/moe-refactor/config-b200.txt
+pytest -s -v tests/evals/gsm8k/test_gsm8k_correctness.py --config-list-file=tests/evals/gsm8k/configs/moe-refactor-dp-ep/config-b200.txt
+# Distributed Torchrun + Examples (4 GPUs)
+FOR_TEST='pytest '  NCCL_CUMEM_HOST_ENABLE=0 torchrun --nproc-per-node=4 tests/tests/distributed/test_torchrun_example.py
+FOR_TEST='pytest '  NCCL_CUMEM_HOST_ENABLE=0 PP_SIZE=2 torchrun --nproc-per-node=4 tests/tests/distributed/test_torchrun_example.py
+FOR_TEST='pytest '  NCCL_CUMEM_HOST_ENABLE=0 TP_SIZE=4 torchrun --nproc-per-node=4 tests/tests/distributed/test_torchrun_example_moe.py
+FOR_TEST='pytest '  NCCL_CUMEM_HOST_ENABLE=0 PP_SIZE=2 TP_SIZE=2 torchrun --nproc-per-node=4 tests/tests/distributed/test_torchrun_example_moe.py
+FOR_TEST='pytest '  NCCL_CUMEM_HOST_ENABLE=0 DP_SIZE=4 ENABLE_EP=1 torchrun --nproc-per-node=4 tests/tests/distributed/test_torchrun_example_moe.py
+FOR_TEST='pytest '  NCCL_CUMEM_HOST_ENABLE=0 TP_SIZE=2 DP_SIZE=2 ENABLE_EP=1 torchrun --nproc-per-node=4 tests/tests/distributed/test_torchrun_example_moe.py
+pytest -v -s tests/distributed/test_context_parallel.py
+pytest -v -s tests/plugins_tests/test_platform_plugins.py
+pytest -v -s tests/plugins_tests/test_io_processor_plugins.py
+pytest -v -s tests/plugins_tests/test_terratorch_io_processor_plugins.py
+pytest -v -s tests/plugins_tests/test_bge_m3_sparse_io_processor_plugins.py
+pytest -v -s tests/plugins_tests/test_stats_logger_plugins.py
+pytest -v -s tests/plugins_tests/test_scheduler_plugins.py
+pytest -v -s tests/engine test_sequence.py tests/test_config.py tests/test_logger.py tests/test_vllm_port.py

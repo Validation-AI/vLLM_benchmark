@@ -1,0 +1,37 @@
+# serving performance
+## modelid dtype dataset parallel_type length_config num_prompt request_rate extra_ENV extra_args backend hardware test_mode max_concurrency benchmark_script
+Specify,deepseek-ai/DeepSeek-R1-Distill-Llama-8B,FP8-e5m2,dummy,TP2,1024/512,60-61,inf,"","--trust-remote-code --gpu-memory-util=0.9 --no-enable-prefix-caching --max-num-batched-tokens=8192 --disable-log-requests --max-model-len=8192 --block-size 64",vllm,BMG,performance,NAN,serving
+
+# accuracy LLM
+## modelid dtype dataset parallel_type length_config num_prompt request_rate extra_ENV extra_args backend hardware test_mode max_concurrency benchmark_script
+Specify,01-ai/Yi1.5-34B-Chat,bfloat16,dummy,TP4,128/128,20,inf,"","",vllm,BMG,accuracy,NAN,accuracy
+
+# accuracy VLM
+## modelid dtype dataset parallel_type length_config num_prompt request_rate extra_ENV extra_args backend hardware test_mode max_concurrency benchmark_script
+Specify,Qwen/Qwen2.5-VL-7B-Instruct,FP8-e5m2,MMMU_DEV_VAL,TP2,128/128,20,inf,"","--trust-remote-code --gpu-memory-util=0.9 --no-enable-prefix-caching --max-num-batched-tokens=8192 --disable-log-requests --max-model-len=8192 --block-size 64",vllm,BMG,accuracy_MM,NAN,accuracy
+
+# UT
+## pytest_command
+Specify,pytest -v -s tests/v1/core
+
+# PD accuracy
+## test_mode modelid MAX_MODEL_LEN BLOCK_SIZE
+Specify,PD-ACC,deepseek-ai/DeepSeek-R1-Distill-Llama-8B,1024,16
+
+# KPI cases group
+Category,KPI_cases
+
+# UT cases group
+Category,UT_cases
+
+# EP cases group
+Category,EP_cases
+
+# accuracy VLM cases group
+Category,MM_ACC_cases
+
+# PR case check
+Specify,INDEPEND_CASE,python3 examples/offline_inference/basic/generate.py --model ehristoforu/Falcon3-MoE-2x7B-Insruct --enforce-eager --dtype=float16 --block-size=64 --max_model_len=2048 --gpu-memory-utilization=0.8 -tp=4
+
+# spec decoding
+Specify***meta-llama/Meta-Llama-3-8B-Instruct***FP16***hf***TP4***1024/512***1***inf******--speculative_config '{\"method\":\"eagle\",\"model\":\"yuhuili/EAGLE-LLaMA3.1-Instruct-8B\",\"num_speculative_tokens\":3,\"max_model_len\":2048}' --trust-remote-code --gpu-memory-util=0.9 --no-enable-prefix-caching --max-num-batched-tokens=8192 --max-model-len=8192 --block-size 64***vllm***BMG***performance***NAN***serving

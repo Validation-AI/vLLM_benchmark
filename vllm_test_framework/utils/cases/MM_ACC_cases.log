@@ -1,0 +1,2 @@
+Qwen/Qwen2.5-VL-7B-Instruct,FP8-e5m2,MMMU_DEV_VAL,TP2,128/128,20,inf,"","--trust-remote-code --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192 --disable-log-requests --max-model-len=8192 --block-size 128",vllm,BMG,accuracy_MM,NAN,accuracy
+Qwen/Qwen2.5-VL-7B-Instruct,FP8-e5m2,LongVideoBench,TP2,128/128,20,inf,"","--trust-remote-code --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192 --disable-log-requests --max-model-len=8192 --block-size 128",vllm,BMG,accuracy_MM,NAN,accuracy

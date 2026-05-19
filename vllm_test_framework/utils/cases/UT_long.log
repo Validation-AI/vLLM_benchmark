@@ -1,0 +1,18 @@
+# Language Models Test (Extended Generation)
+ pytest -v -s tests/models/language/generation -m '(not core_model) and (not hybrid_model)'
+# Language Models Test (Extended Pooling)
+ pytest -v -s tests/models/language/pooling -m 'not core_model'
+# Multi-Modal Models (Extended Generation 1)
+ pytest -v -s tests/models/multimodal/generation -m 'not core_model' --ignore tests/models/multimodal/generation/test_common.py
+# Multi-Modal Models (Extended Generation 2)
+ pytest -v -s tests/models/multimodal/generation/test_common.py -m 'split(group=0) and not core_model'
+# LoRA %N
+ pytest -v -s tests/lora   --ignore=tests/lora/test_chatglm3_tp.py --ignore=tests/lora/test_llama_tp.py --ignore=tests/lora/test_llm_with_multi_loras.py --ignore=tests/lora/test_olmoe_tp.py --ignore=tests/lora/test_deepseekv2_tp.py --ignore=tests/lora/test_gptoss_tp.py --ignore=tests/lora/test_qwen3moe_tp.py --ignore=tests/lora/test_qwen35_densemodel_lora.py -k 'not test_qwen2vl_lora'
+# Entrypoints Integration (API Server openai - Part 3)
+ pytest -v -s tests/entrypoints/openai --ignore=tests/entrypoints/openai/chat_completion --ignore=tests/entrypoints/openai/completion --ignore=tests/entrypoints/openai/speech_to_text/ --ignore=tests/entrypoints/openai/correctness/ --ignore=tests/entrypoints/openai/tool_parsers/ --ignore=tests/entrypoints/openai/responses --ignore=tests/entrypoints/openai/test_multi_api_servers.py
+# Transformers Nightly Models
+ pytest -v -s tests/models/multimodal/processing/
+# Model Executor
+ pytest -v -s tests/model_executor -m '(not slow_test)' --ignore tests/model_executor/layers/test_rocm_unquantized_gemm.py
+# PyTorch Compilation Unit Tests
+ pytest -s -v tests/compile/test_aot_compile.py tests/compile/test_compile_ranges.py tests/compile/test_decorator.py tests/compile/test_graph_partition.py tests/compile/test_rotary_embedding_compile.py tests/compile/test_sequence_parallelism_threshold.py tests/compile/test_structured_logging.py tests/compile/test_wrapper.py tests/compile/test_config.py tests/compile/test_dynamic_shapes_compilation.py

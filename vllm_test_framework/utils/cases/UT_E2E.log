@@ -1,0 +1,47 @@
+# Examples
+FOR_TEST='pytest '  python3 examples/basic/offline_inference/chat.py
+FOR_TEST='pytest '  python3 examples/basic/offline_inference/generate.py --model facebook/opt-125m
+FOR_TEST='pytest '  python3 examples/basic/offline_inference/generate.py --model meta-llama/Llama-2-13b-chat-hf --cpu-offload-gb 10
+FOR_TEST='pytest '  python3 examples/basic/offline_inference/classify.py
+FOR_TEST='pytest '  python3 examples/basic/offline_inference/embed.py
+FOR_TEST='pytest '  python3 examples/basic/offline_inference/score.py
+FOR_TEST='pytest '  python3 examples/offline_inference/audio_language.py --seed 0
+FOR_TEST='pytest '  python3 examples/offline_inference/vision_language.py --seed 0
+FOR_TEST='pytest '  python3 examples/offline_inference/vision_language_multi_image.py --seed 0
+FOR_TEST='pytest '  python3 examples/offline_inference/encoder_decoder_multimodal.py --model-type whisper --seed 0
+FOR_TEST='pytest '  python3 examples/pooling/embed/vision_embedding_offline.py --seed 0
+FOR_TEST='pytest '  python3 examples/offline_inference/prefix_caching.py
+FOR_TEST='pytest '  python3 examples/offline_inference/llm_engine_example.py
+FOR_TEST='pytest '  python3 examples/others/tensorize_vllm_model.py --model facebook/opt-125m serialize --serialized-directory /tmp/ --suffix v1 && python3 examples/others/tensorize_vllm_model.py --model facebook/opt-125m deserialize --path-to-tensors /tmp/vllm/facebook/opt-125m/v1/model.tensors
+FOR_TEST='pytest '  python3 examples/offline_inference/spec_decode.py --test --method eagle --num_spec_tokens 3 --dataset-name hf --dataset-path philschmid/mt-bench --num-prompts 80 --temp 0 --top-p 1.0 --top-k -1 --tp 1 --enable-chunked-prefill --max-model-len 2048
+FOR_TEST='pytest '  python3 examples/offline_inference/spec_decode.py --test --method eagle3 --num_spec_tokens 3 --dataset-name hf --dataset-path philschmid/mt-bench --num-prompts 80 --temp 0 --top-p 1.0 --top-k -1 --tp 1 --enable-chunked-prefill --max-model-len 1536
+# Distributed Torchrun + Examples (4 GPUs)
+FOR_TEST='pytest '  NCCL_CUMEM_HOST_ENABLE=0 python3 examples/offline_inference/data_parallel.py --enforce-eager
+FOR_TEST='pytest '  NCCL_CUMEM_HOST_ENABLE=0 VLLM_ALLOW_INSECURE_SERIALIZATION=1 python3 examples/rl/rlhf_nccl.py
+FOR_TEST='pytest '  NCCL_CUMEM_HOST_ENABLE=0 VLLM_ALLOW_INSECURE_SERIALIZATION=1 python3 examples/rl/rlhf_ipc.py
+# Distributed Tests (8 GPUs)(H100)
+FOR_TEST='pytest '  NCCL_CUMEM_HOST_ENABLE=0 torchrun --nproc-per-node=8 examples/offline_inference/torchrun_dp_example.py --tp-size=2 --pp-size=1 --dp-size=4 --enable-ep
+# Distributed Tests (2 GPUs)(H100)
+FOR_TEST='pytest '  VLLM_ALLOW_INSECURE_SERIALIZATION=1 python3 examples/rl/rlhf_async_new_apis.py
+FOR_TEST='pytest '  VLLM_USE_DEEP_GEMM=1 VLLM_LOGGING_LEVEL=DEBUG python3 examples/offline_inference/data_parallel.py --model=Qwen/Qwen1.5-MoE-A2.7B -tp=1 -dp=2 --max-model-len=2048 --all2all-backend=deepep_high_throughput
+# 2 Node Test (4 GPUs)
+# ./.buildkite/scripts/run-multi-node-test.sh ./tests 2 2 $IMAGE_TAG "VLLM_TEST_SAME_HOST=0 torchrun --nnodes 2 --nproc-per-node=2 --rdzv_backend=c10d --rdzv_endpoint=192.168.10.10 tests/distributed/test_same_node.py | grep 'Same node test passed' && NUM_NODES=2 torchrun --nnodes 2 --nproc-per-node=2 --rdzv_backend=c10d --rdzv_endpoint=192.168.10.10 tests/distributed/test_node_count.py | grep 'Node count test passed' && python3 ../examples/offline_inference/data_parallel.py -dp=2 -tp=1 --dp-num-nodes=2 --dp-node-rank=0 --dp-master-addr=192.168.10.10 --dp-master-port=12345 --enforce-eager --trust-remote-code && VLLM_MULTI_NODE=1 pytest -v -s tests/distributed/test_multi_node_assignment.py && VLLM_MULTI_NODE=1 pytest -v -s tests/distributed/test_pipeline_parallel.py" "VLLM_TEST_SAME_HOST=0 torchrun --nnodes 2 --nproc-per-node=2 --rdzv_backend=c10d --rdzv_endpoint=192.168.10.10 tests/distributed/test_same_node.py | grep 'Same node test passed' && NUM_NODES=2 torchrun --nnodes 2 --nproc-per-node=2 --rdzv_backend=c10d --rdzv_endpoint=192.168.10.10 tests/distributed/test_node_count.py | grep 'Node count test passed' && python3 ../examples/offline_inference/data_parallel.py -dp=2 -tp=1 --dp-num-nodes=2 --dp-node-rank=1 --dp-master-addr=192.168.10.10 --dp-master-port=12345 --enforce-eager --trust-remote-code"
+# Attention Benchmarks Smoke Test (B200)
+FOR_TEST='pytest '  python3 benchmarks/attention_benchmarks/benchmark.py --backends flash flashinfer --batch-specs "8q1s1k" --repeats 1 --warmup-iters 1
+# Transformers Nightly Models
+FOR_TEST='pytest '  python3 examples/basic/offline_inference/chat.py
+FOR_TEST='pytest '  python3 examples/offline_inference/vision_language.py --model-type qwen2_5_vl
+FOR_TEST='pytest '  VLLM_WORKER_MULTIPROC_METHOD=spawn python3 examples/offline_inference/audio_language.py --model-type whisper
+# Model Runner V2 Examples
+FOR_TEST='pytest '  VLLM_USE_V2_MODEL_RUNNER=1 python3 examples/basic/offline_inference/chat.py
+FOR_TEST='pytest '  VLLM_USE_V2_MODEL_RUNNER=1 python3 examples/basic/offline_inference/generate.py --model facebook/opt-125m
+FOR_TEST='pytest '  VLLM_USE_V2_MODEL_RUNNER=1 python3 examples/offline_inference/audio_language.py --seed 0
+FOR_TEST='pytest '  VLLM_USE_V2_MODEL_RUNNER=1 python3 examples/offline_inference/vision_language.py --seed 0
+FOR_TEST='pytest '  VLLM_USE_V2_MODEL_RUNNER=1 python3 examples/offline_inference/vision_language_multi_image.py --seed 0
+FOR_TEST='pytest '  VLLM_USE_V2_MODEL_RUNNER=1 python3 examples/offline_inference/encoder_decoder_multimodal.py --model-type whisper --seed 0
+FOR_TEST='pytest '  VLLM_USE_V2_MODEL_RUNNER=1 python3 examples/pooling/embed/vision_embedding_offline.py --seed 0
+FOR_TEST='pytest '  VLLM_USE_V2_MODEL_RUNNER=1 python3 examples/offline_inference/prefix_caching.py
+FOR_TEST='pytest '  VLLM_USE_V2_MODEL_RUNNER=1 python3 examples/offline_inference/llm_engine_example.py
+FOR_TEST='pytest '  VLLM_USE_V2_MODEL_RUNNER=1 python3 examples/others/tensorize_vllm_model.py --model facebook/opt-125m serialize --serialized-directory /tmp/ --suffix v1 && python3 examples/others/tensorize_vllm_model.py --model facebook/opt-125m deserialize --path-to-tensors /tmp/vllm/facebook/opt-125m/v1/model.tensors
+FOR_TEST='pytest '  VLLM_USE_V2_MODEL_RUNNER=1 python3 examples/offline_inference/spec_decode.py --test --method eagle --num_spec_tokens 3 --dataset-name hf --dataset-path philschmid/mt-bench --num-prompts 80 --temp 0 --top-p 1.0 --top-k -1 --tp 1 --enable-chunked-prefill --max-model-len 2048
+FOR_TEST='pytest '  VLLM_USE_V2_MODEL_RUNNER=1 python3 examples/offline_inference/spec_decode.py --test --method eagle3 --num_spec_tokens 3 --dataset-name hf --dataset-path philschmid/mt-bench --num-prompts 80 --temp 0 --top-p 1.0 --top-k -1 --tp 1 --enable-chunked-prefill --max-model-len 1536

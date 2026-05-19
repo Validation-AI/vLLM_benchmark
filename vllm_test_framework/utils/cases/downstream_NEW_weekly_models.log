@@ -1,0 +1,83 @@
+##4K/1K  BF16
+Specify,deepseek-ai/DeepSeek-R1-Distill-Llama-70B,default,dummy,TP8,4096/1024,10,inf,"","--trust-remote-code  --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192   --disable-log-requests  --max-model-len=6000 --block-size 64",vllm,BMG,performance,2,serving
+Specify,meta-llama/Llama-3.3-70B-Instruct,default,dummy,TP8,4096/1024,10,inf,"","--trust-remote-code  --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192   --max-model-len=8192 --block-size 64 --dtype bfloat16",vllm,BMG,performance,2,serving
+Specify,deepseek-ai/DeepSeek-R1-Distill-Qwen-14B,default,dummy,TP2,4096/1024,25,inf,"","--trust-remote-code  --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192   --disable-log-requests  --max-model-len=6000 --block-size 64",vllm,BMG,performance,5,serving
+Specify,deepseek-ai/DeepSeek-R1-Distill-Qwen-32B,default,dummy,TP4,4096/1024,15,inf,"","--trust-remote-code  --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192   --disable-log-requests  --max-model-len=6000 --block-size 64",vllm,BMG,performance,3,serving
+Specify,meta-llama/Llama-3.1-8B-Instruct,default,dummy,TP1,4096/1024,30,inf,"","--trust-remote-code  --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192   --disable-log-requests  --max-model-len=6000 --block-size 64",vllm,BMG,performance,6,serving
+Specify,Qwen/Qwen3-30B-A3B-Instruct-2507,default,dummy,TP4,4096/1024,55,inf,"","--trust-remote-code  --gpu-memory-util=0.85 --no-enable-prefix-caching --max-num-batched-tokens=8192   --disable-log-requests  --max-model-len=6000 --block-size 64",vllm,BMG,performance,11,serving
+Specify,openbmb/MiniCPM-V-4,default,random-mm,TP1,4096/1024,40,inf,"IMAGE_SIZE=512","--trust-remote-code --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192 --disable-log-requests --max-model-len=6000 --block-size 64 --limit-mm-per-prompt '{\"image\": 1}'",openai-chat,BMG,performance,8,serving
+
+
+#need to add if issue fix
+#Qwen/Qwen3-Next-80B-A3B-Instruct
+#Qwen/Qwen3-Next-80B-A3B-Thinking
+
+#gpt-oss
+openai/gpt-oss-20b,default,sonnet,TP4,4096/1024,75,inf,"","--trust-remote-code  --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192   --disable-log-requests  --max-model-len=6000 --block-size 64",vllm,BMG,performance,15,serving
+openai/gpt-oss-120b,default,sonnet,TP4,4096/1024,45,inf,"","--trust-remote-code  --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192   --disable-log-requests  --max-model-len=6000 --block-size 64",vllm,BMG,performance,9,serving
+
+#4K/1K  FP8
+Specify,deepseek-ai/DeepSeek-R1-Distill-Llama-70B,FP8-e4m3,dummy,TP8,4096/1024,10,inf,"","--trust-remote-code  --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192   --disable-log-requests  --max-model-len=6000 --block-size 64",vllm,BMG,performance,2,serving
+Specify,deepseek-ai/DeepSeek-R1-Distill-Qwen-14B,FP8-e4m3,dummy,TP2,4096/1024,25,inf,"","--trust-remote-code  --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192   --disable-log-requests  --max-model-len=6000 --block-size 64",vllm,BMG,performance,5,serving
+Specify,deepseek-ai/DeepSeek-R1-Distill-Qwen-32B,FP8-e4m3,dummy,TP4,4096/1024,15,inf,"","--trust-remote-code  --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192   --disable-log-requests  --max-model-len=6000 --block-size 64",vllm,BMG,performance,3,serving
+Specify,Qwen/Qwen3-30B-A3B-Instruct-2507,FP8-e4m3,dummy,TP4,4096/1024,55,inf,"","--trust-remote-code  --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192   --disable-log-requests  --max-model-len=6000 --block-size 64",vllm,BMG,performance,11,serving
+
+# need to scan for the model
+#Specify,openbmb/MiniCPM-V-4
+
+##1K/4K BF16
+Specify,deepseek-ai/DeepSeek-R1-Distill-Llama-70B,default,dummy,TP8,1024/4096,45,inf,"","--trust-remote-code  --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192     --max-model-len=6000 --block-size 64",vllm,BMG,performance,9,serving
+Specify,meta-llama/Llama-3.3-70B-Instruct,default,dummy,TP8,1024/4096,45,inf,"","--trust-remote-code  --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192   --max-model-len=8192 --block-size 64 --dtype bfloat16",vllm,BMG,performance,9,serving
+Specify,deepseek-ai/DeepSeek-R1-Distill-Qwen-14B,default,dummy,TP2,1024/4096,55,inf,"","--trust-remote-code  --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192     --max-model-len=6000 --block-size 64",vllm,BMG,performance,11,serving
+Specify,deepseek-ai/DeepSeek-R1-Distill-Qwen-32B,default,dummy,TP4,1024/4096,60,inf,"","--trust-remote-code  --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192     --max-model-len=6000 --block-size 64",vllm,BMG,performance,12,serving
+Specify,meta-llama/Llama-3.1-8B-Instruct,default,dummy,TP1,1024/4096,35,inf,"","--trust-remote-code  --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192     --max-model-len=6000 --block-size 64",vllm,BMG,performance,7,serving
+Specify,Qwen/Qwen3-30B-A3B-Instruct-2507,default,dummy,TP4,1024/4096,160,inf,"","--trust-remote-code  --gpu-memory-util=0.85 --no-enable-prefix-caching --max-num-batched-tokens=8192     --max-model-len=6000 --block-size 64",vllm,BMG,performance,32,serving
+openbmb/MiniCPM-V-4,default,random-mm,TP1,1024/4096,110,inf,"IMAGE_SIZE=512","--trust-remote-code --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192 --disable-log-requests --max-model-len=6000 --block-size 64 --limit-mm-per-prompt '{\"image\": 1}'",openai-chat,BMG,performance,22,serving
+
+
+#known issue
+#Qwen/Qwen3-Next-80B-A3B-Instruct,default,dummy,TP8,1024/4096,10-17,inf,"","--trust-remote-code  --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192     --max-model-len=6000 --block-size 64",vllm,BMG,performance,NAN,serving
+#Qwen/Qwen3-Next-80B-A3B-Thinking,default,dummy,TP8,1024/4096,10-17,inf,"","--trust-remote-code  --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192     --max-model-len=6000 --block-size 64",vllm,BMG,performance,NAN,serving
+
+
+Specify,openai/gpt-oss-20b,default,sonnet,TP4,1024/4096,295,inf,"","--trust-remote-code  --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192   --disable-log-requests  --max-model-len=6000 --block-size 64",vllm,BMG,performance,59,serving
+Specify,openai/gpt-oss-120b,default,sonnet,TP4,1024/4096,185,inf,"","--trust-remote-code  --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192   --disable-log-requests  --max-model-len=6000 --block-size 64",vllm,BMG,performance,37,serving
+
+
+
+##1K/4K FP8
+Specify,deepseek-ai/DeepSeek-R1-Distill-Llama-70B,FP8-e4m3,dummy,TP8,1024/4096,50,inf,"","--trust-remote-code  --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192     --max-model-len=6000 --block-size 64",vllm,BMG,performance,10,serving
+Specify,deepseek-ai/DeepSeek-R1-Distill-Qwen-14B,FP8-e4m3,dummy,TP2,1024/4096,100,inf,"","--trust-remote-code  --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192     --max-model-len=6000 --block-size 64",vllm,BMG,performance,20,serving
+Specify,deepseek-ai/DeepSeek-R1-Distill-Qwen-32B,FP8-e4m3,dummy,TP4,1024/4096,70,inf,"","--trust-remote-code  --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192     --max-model-len=6000 --block-size 64",vllm,BMG,performance,14,serving
+Specify,Qwen/Qwen3-30B-A3B-Instruct-2507,FP8-e4m3,dummy,TP4,1024/4096,225,inf,"","--trust-remote-code  --gpu-memory-util=0.85 --no-enable-prefix-caching --max-num-batched-tokens=8192     --max-model-len=6000 --block-size 64",vllm,BMG,performance,45,serving
+#need add to scan
+#Specify,openbmb/MiniCPM-V-4,FP8-e4m3,random-mm,TP1,4096/1024,30,inf,"IMAGE_SIZE=224","--trust-remote-code --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=8192 --disable-log-requests --max-model-len=6000 --block-size 64 --limit-mm-per-prompt '{\"image\": 1}'",openai-chat,BMG,performance,6,serving
+
+
+
+##accuracy
+Specify,deepseek-ai/DeepSeek-R1-Distill-Llama-70B,default,dummy,TP8,128/128,16,inf,"VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn","--trust-remote-code --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=4096 --max-model-len=8192 --block-size 64",vllm,BMG,accuracy_serving,NAN,accuracy_serving
+Specify,meta-llama/Llama-3.3-70B-Instruct,default,dummy,TP8,128/128,16,inf,"VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn","--trust-remote-code --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=4096 --max-model-len=8192 --block-size 64",vllm,BMG,accuracy_serving,NAN,accuracy_serving
+Specify,deepseek-ai/DeepSeek-R1-Distill-Qwen-14B,default,dummy,TP2,128/128,16,inf,"VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn","--trust-remote-code --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=4096 --max-model-len=8192 --block-size 64",vllm,BMG,accuracy_serving,NAN,accuracy_serving
+Specify,deepseek-ai/DeepSeek-R1-Distill-Qwen-32B,default,dummy,TP4,128/128,16,inf,"VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn","--trust-remote-code --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=4096 --max-model-len=8192 --block-size 64",vllm,BMG,accuracy_serving,NAN,accuracy_serving
+Specify,meta-llama/Llama-3.1-8B-Instruct,default,dummy,TP1,128/128,16,inf,"VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn","--trust-remote-code --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=4096 --max-model-len=8192 --block-size 64",vllm,BMG,accuracy_serving,NAN,accuracy_serving
+Specify,Qwen/Qwen3-30B-A3B-Instruct-2507,default,dummy,TP4,128/128,16,inf,"VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn","--trust-remote-code --gpu-memory-util=0.85 --no-enable-prefix-caching --max-num-batched-tokens=4096 --max-model-len=8192 --block-size 64",vllm,BMG,accuracy_serving,NAN,accuracy_serving
+Specify,openai/gpt-oss-20b,default,sonnet,TP4,128/128,16,inf,"VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn","--trust-remote-code --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=4096 --max-model-len=8192 --block-size 64",vllm,BMG,accuracy_serving,NAN,accuracy_serving
+Specify,openai/gpt-oss-120b,default,sonnet,TP4,128/128,16,inf,"VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn","--trust-remote-code --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=4096 --max-model-len=8192 --block-size 64",vllm,BMG,accuracy_serving,NAN,accuracy_serving
+Specify,openbmb/MiniCPM-V-4,default,dummy,TP1,128/128,16,inf,"VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn","--trust-remote-code --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=4096 --max-model-len=8192 --block-size 64",vllm,BMG,accuracy_serving,NAN,accuracy_serving
+
+#known issues
+#Specify,Qwen/Qwen3-Next-80B-A3B-Instruct,default,dummy,TP8,128/128,16,inf,"VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn","--trust-remote-code --gpu-memory-util=0.85 --no-enable-prefix-caching --max-num-batched-tokens=4096 --max-model-len=8192 --block-size 64",vllm,BMG,accuracy_serving,NAN,accuracy_serving
+#Specify,Qwen/Qwen3-Next-80B-A3B-Thinking,default,dummy,TP8,128/128,16,inf,"VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn","--trust-remote-code --gpu-memory-util=0.85 --no-enable-prefix-caching --max-num-batched-tokens=4096 --max-model-len=8192 --block-size 64",vllm,BMG,accuracy_serving,NAN,accuracy_serving
+
+Specify,deepseek-ai/DeepSeek-R1-Distill-Llama-70B,FP8-e4m3,dummy,TP8,128/128,16,inf,"VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn","--trust-remote-code --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=4096 --max-model-len=8192 --block-size 64",vllm,BMG,accuracy_serving,NAN,accuracy_serving
+Specify,meta-llama/Llama-3.3-70B-Instruct,FP8-e4m3,dummy,TP8,128/128,16,inf,"VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn","--trust-remote-code --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=4096 --max-model-len=8192 --block-size 64",vllm,BMG,accuracy_serving,NAN,accuracy_serving
+Specify,deepseek-ai/DeepSeek-R1-Distill-Qwen-14B,FP8-e4m3,dummy,TP2,128/128,16,inf,"VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn","--trust-remote-code --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=4096 --max-model-len=8192 --block-size 64",vllm,BMG,accuracy_serving,NAN,accuracy_serving
+Specify,deepseek-ai/DeepSeek-R1-Distill-Qwen-32B,FP8-e4m3,dummy,TP4,128/128,16,inf,"VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn","--trust-remote-code --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=4096 --max-model-len=8192 --block-size 64",vllm,BMG,accuracy_serving,NAN,accuracy_serving
+ify,meta-llama/Llama-3.1-8B-Instruct,FP8-e4m3,dummy,TP1,128/128,16,inf,"VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn","--trust-remote-code --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=4096 --max-model-len=8192 --block-size 64",vllm,BMG,accuracy_serving,NAN,accuracy_serving
+Specify,openbmb/MiniCPM-V-4,FP8-e4m3,dummy,TP1,128/128,16,inf,"VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn","--trust-remote-code --gpu-memory-util=0.95 --no-enable-prefix-caching --max-num-batched-tokens=4096 --max-model-len=8192 --block-size 64",vllm,BMG,accuracy_serving,NAN,accuracy_serving
+Specify,Qwen/Qwen3-30B-A3B-Instruct-2507,FP8-e4m3,dummy,TP4,128/128,16,inf,"VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 VLLM_WORKER_MULTIPROC_METHOD=spawn","--trust-remote-code --gpu-memory-util=0.85 --no-enable-prefix-caching --max-num-batched-tokens=4096 --max-model-len=8192 --block-size 64",vllm,BMG,accuracy_serving,NAN,accuracy_serving
+
+#known issues, need add script
+#Specify,Qwen/Qwen3-Next-80B-A3B-Instruct
+#Specify,Qwen/Qwen3-Next-80B-A3B-Thinking

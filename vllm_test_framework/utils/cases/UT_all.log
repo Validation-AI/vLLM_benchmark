@@ -1,0 +1,107 @@
+pytest -sv tests/basic_correctness/test_basic_correctness.py
+pytest -sv tests/basic_correctness/test_cumem.py
+pytest -sv tests/basic_correctness/test_cpu_offload.py
+pytest -v -s tests/model_executor
+pytest -v -s tests/entrypoints/openai/test_tensorizer_entrypoint.py
+pytest -v -s tests/benchmarks/
+VLLM_TEST_FORCE_LOAD_FORMAT=auto pytest -v -s tests/quantization/ --ignore tests/quantization/test_blackwell_moe.py
+pytest -s -v tests/evals/gsm8k/test_gsm8k_correctness.py --config-list-file=configs/models-small.txt
+pytest -sv tests/entrypoints/openai/correctness/
+pytest -v -s tests/models/multimodal -m core_model --ignore tests/models/multimodal/generation/test_whisper.py --ignore tests/models/multimodal/processing
+pytest -v -s tests/models/multimodal/generation/test_whisper.py -m core_model
+pytest -v -s tests/models/quantization
+
+FOR_TEST='pytest ' bash tests/v1/kv_connector/nixl_integration/tp_config_sweep_accuracy_test.sh
+FOR_TEST='pytest ' torchrun --nproc-per-node=4 tests/distributed/test_torchrun_example.py
+FOR_TEST='pytest ' PP_SIZE=2 torchrun --nproc-per-node=4 tests/distributed/test_torchrun_example.py
+FOR_TEST='pytest ' TP_SIZE=4 torchrun --nproc-per-node=4 tests/distributed/test_torchrun_example_moe.py
+FOR_TEST='pytest ' PP_SIZE=2 TP_SIZE=2 torchrun --nproc-per-node=4 tests/distributed/test_torchrun_example_moe.py
+FOR_TEST='pytest ' DP_SIZE=4 ENABLE_EP=1 torchrun --nproc-per-node=4 tests/distributed/test_torchrun_example_moe.py
+FOR_TEST='pytest ' TP_SIZE=2 DP_SIZE=2 ENABLE_EP=1 torchrun --nproc-per-node=4 tests/distributed/test_torchrun_example_moe.py
+FOR_TEST='pytest ' python3 examples/offline_inference/data_parallel.py --enforce-eager
+
+TP_SIZE=2 DP_SIZE=2 pytest -v -s tests/v1/distributed/test_async_llm_dp.py
+TP_SIZE=2 DP_SIZE=2 pytest -v -s tests/v1/distributed/test_external_lb_dp.py
+TP_SIZE=1 DP_SIZE=4 pytest -v -s tests/v1/distributed/test_internal_lb_dp.py
+TP_SIZE=1 DP_SIZE=4 pytest -v -s tests/v1/distributed/test_hybrid_lb_dp.py
+pytest -v -s tests/v1/engine/test_engine_core_client.py::test_kv_cache_events_dp
+pytest -v -s tests/distributed/test_utils.py
+pytest -v -s tests/compile/fullgraph/test_basic_correctness.py
+pytest -v -s tests/distributed/test_pynccl.py
+pytest -v -s tests/distributed/test_events.py
+pytest -v -s tests/distributed/test_symm_mem_allreduce.py
+
+FOR_TEST='pytest ' VLLM_ALLOW_INSECURE_SERIALIZATION=1 python3 rlhf.py
+FOR_TEST='pytest ' VLLM_ALLOW_INSECURE_SERIALIZATION=1 RAY_DEDUP_LOGS=0 python3 rlhf_colocate.py
+
+pytest -v -s tests/v1/e2e
+pytest -v -s tests/v1/engine --ignore tests/v1/engine/test_preprocess_error_handling.py
+pytest -v -s tests/v1/engine/test_preprocess_error_handling.py
+pytest -v -s tests/v1/entrypoints
+pytest -v -s -m 'not cpu_test' tests/v1/core
+pytest -v -s tests/v1/executor
+pytest -v -s tests/v1/kv_offload
+pytest -v -s tests/v1/sample
+pytest -v -s tests/v1/logits_processors
+pytest -v -s tests/v1/worker
+pytest -v -s tests/v1/spec_decode
+pytest -v -s -m 'not cpu_test' tests/v1/kv_connector/unit
+pytest -v -s -m 'not cpu_test' tests/v1/metrics
+pytest -v -s tests/v1/test_oracle.py
+pytest -v -s tests/v1/test_request.py
+pytest -v -s tests/v1/test_outputs.py
+pytest -v -s tests/entrypoints/openai/correctness/test_lmeval.py::test_lm_eval_accuracy_v1_engine
+pytest -v -s -m 'not cpu_test' tests/multimodal
+pytest -v -s utils_
+pytest -v -s tests/entrypoints/openai/tool_parsers
+pytest -v -s tests/entrypoints/ --ignore=tests/entrypoints/llm --ignore=tests/entrypoints/rpc --ignore=tests/entrypoints/sleep --ignore=tests/entrypoints/instrumentator --ignore=tests/entrypoints/openai --ignore=tests/entrypoints/offline_mode --ignore=tests/entrypoints/test_chat_utils.py  --ignore=tests/entrypoints/pooling
+pytest -v -s tests/entrypoints/llm --ignore=tests/entrypoints/llm/test_generate.py --ignore=tests/entrypoints/llm/test_collective_rpc.py
+pytest -v -s tests/entrypoints/llm/test_generate.py
+pytest -v -s tests/entrypoints/offline_mode
+pytest -v -s tests/entrypoints/openai --ignore=tests/entrypoints/openai/test_chat_with_tool_reasoning.py --ignore=tests/entrypoints/openai/test_oot_registration.py --ignore=tests/entrypoints/openai/test_tensorizer_entrypoint.py --ignore=tests/entrypoints/openai/correctness/  --ignore=tests/entrypoints/openai/tool_parsers/
+pytest -v -s tests/entrypoints/test_chat_utils.py
+pytest -v -s tests/entrypoints/sleep
+pytest -v -s tests/entrypoints/rpc
+pytest -v -s tests/tool_use
+pytest -v -s tests/entrypoints/pooling
+pytest -v -s tests/distributed/test_eplb_algo.py
+pytest -v -s tests/distributed/test_eplb_execute.py
+pytest -v -s tests/distributed/test_eplb_spec_decode.py
+pytest -v -s tests/v1/tracing
+pytest -v -s tests/test_regression.py
+pytest -v -s tests/engine tests/test_sequence.py tests/test_config.py tests/test_logger.py tests/test_vllm_port.py
+#pytest -v -s cuda/test_cuda_context.py
+pytest -v -s tests/samplers
+VLLM_USE_FLASHINFER_SAMPLER=1 pytest -v -s tests/samplers
+pytest -v -s lora --ignore=tests/lora/test_chatglm3_tp.py --ignore=tests/lora/test_llama_tp.py --ignore=tests/lora/test_llm_with_multi_loras.py --ignore=tests/lora/test_olmoe_tp.py --ignore=tests/lora/test_deepseekv2_tp.py --ignore=tests/lora/test_gptoss_tp.py --ignore=tests/lora/test_qwen3moe_tp.py
+
+FOR_TEST='pytest ' find tests/compile/ -maxdepth 1 -name 'test_*.py' -print0 | xargs -0 -n1 -I{} pytest -s -v '{}'
+FOR_TEST='pytest ' find tests/compile/fullgraph -maxdepth 1 -name 'test_*.py' -not -name 'test_full_graph.py' -print0 | xargs -0 -n1 -I{} pytest -s -v '{}'
+
+pytest -v -s tests/compile/fullgraph/test_full_graph.py -k 'not test_fp8_kv_scale_compile'
+pytest -v -s tests/compile/distributed/test_fusions_e2e.py -k 'TRITON and not +quant_fp8 and not Llama-4'
+pytest -v -s tests/models/test_initialization.py::test_can_initialize_small_subset
+pytest -v -s tests/models/test_initialization.py  -k 'not test_can_initialize_small_subset'
+pytest -v -s tests/models/test_transformers.py models/test_registry.py
+pytest -v -s tests/models/language -m 'core_model and (not slow_test)'
+pytest -v -s tests/models/language -m 'core_model and slow_test'
+pytest -v -s tests/models/language/generation   -m hybrid_model
+pytest -v -s tests/models/multimodal/processing/test_tensor_schema.py
+pytest -s -v tests/test_lm_eval_correctness.py --config-list-file=configs/models-mm-small.txt --tp-size=1
+
+FOR_TEST='pytest ' python3 examples/offline_inference/basic/chat.py
+FOR_TEST='pytest ' python3 examples/offline_inference/basic/generate.py --model facebook/opt-125m
+FOR_TEST='pytest ' python3 examples/offline_inference/basic/generate.py --model meta-llama/Llama-2-13b-chat-hf --cpu-offload-gb 10
+FOR_TEST='pytest ' python3 examples/offline_inference/basic/classify.py
+FOR_TEST='pytest ' python3 examples/offline_inference/basic/embed.py
+FOR_TEST='pytest ' python3 examples/offline_inference/basic/score.py
+FOR_TEST='pytest ' python3 examples/offline_inference/audio_language.py --seed 0
+FOR_TEST='pytest ' python3 examples/offline_inference/vision_language.py --seed 0
+FOR_TEST='pytest ' python3 examples/offline_inference/vision_language_multi_image.py --seed 0
+FOR_TEST='pytest ' python3 examples/offline_inference/encoder_decoder_multimodal.py --model-type whisper --seed 0
+FOR_TEST='pytest ' python3 examples/pooling/pooling/vision_language_pooling.py --seed 0
+FOR_TEST='pytest ' python3 examples/offline_inference/prefix_caching.py
+FOR_TEST='pytest ' python3 examples/offline_inference/llm_engine_example.py
+FOR_TEST='pytest ' python3 examples/others/tensorize_vllm_model.py --model facebook/opt-125m serialize --serialized-directory /tmp/ --suffix v1 && python3 examples/others/tensorize_vllm_model.py --model facebook/opt-125m deserialize --path-to-tensors /tmp/vllm/facebook/opt-125m/v1/model.tensors
+FOR_TEST='pytest ' python3 examples/offline_inference/spec_decode.py --test --method eagle --num_spec_tokens 3 --dataset-name hf --dataset-path philschmid/mt-bench --num-prompts 80 --temp 0 --top-p 1.0 --top-k -1 --tp 1 --enable-chunked-prefill --max-model-len 2048
+FOR_TEST='pytest ' python3 examples/offline_inference/spec_decode.py --test --method eagle3 --num_spec_tokens 3 --dataset-name hf --dataset-path philschmid/mt-bench --num-prompts 80 --temp 0 --top-p 1.0 --top-k -1 --tp 1 --enable-chunked-prefill --max-model-len 1536
