@@ -1,0 +1,31 @@
+name: Weekly Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      priority:
+        type: choice
+        options:
+          - low
+          - normal
+          - high
+
+      runner_num:
+        type: number
+        default: 4
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Submit weekly job
+        run: |
+          curl -X POST http://YOUR_SCHEDULER:8080/submit \
+            -H "Content-Type: application/json" \
+            -d '{
+              "repo": "${{ github.repository }}",
+              "commit": "${{ github.sha }}",
+              "priority": "${{ github.event.inputs.priority }}",
+              "runner_num": "${{ github.event.inputs.runner_num }}"
+            }'
