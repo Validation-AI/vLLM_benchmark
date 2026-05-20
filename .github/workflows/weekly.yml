@@ -85,7 +85,11 @@ on:
       node_label:
         description: "Node label (determines HF cache path)"
         type: string
-        default: "B60_group"
+        options:
+          - 816792
+          - bmg816790
+          - gnr816789
+        default: "gnr816789"
 
       model_cache:
         description: "Model cache path override (leave empty for auto)"
