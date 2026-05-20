@@ -469,18 +469,28 @@ class ResultCollector:
             result.mark_failed("collect_result")
             traceback.print_exc()
 
+    def _log_artifact_ref(self, log_name):
+        """Build artifact URL. Falls back to bare filename when no jenkins URL is configured
+        (e.g. running in GitHub Actions where uploaded artifacts are zip-bundled)."""
+        if not log_name:
+            return ""
+        base = getattr(self.args, "jenkins_build_url", "") or ""
+        if base and base.startswith("http"):
+            return f"{base}/artifact/logs/{log_name}"
+        return log_name
+
     def write_summary_log(self, result):
         resultsJson = result.results_json
         if getattr(resultsJson, "get", False) and resultsJson.get("server_error", ""):
-            server_url = self.args.jenkins_build_url+'/artifact/logs/'+result.server_log_name
+            server_url = self._log_artifact_ref(result.server_log_name)
             if "accuracy" in result.test_mode:
                 log_line = f"{result.modelid};{result.benchmark_script};{result.dtype};{result.dataset};{result.parallel_type};{result.length_config};{result.case_id};{resultsJson['server_error']};{server_url}\n"
             else:
                 log_line = f"{result.modelid};{result.benchmark_script};{result.dtype};{result.dataset};{result.parallel_type};{result.length_config};{result.num_prompt};{result.case_id};{resultsJson['server_error']};{server_url}\n"
         else:
-            server_url = self.args.jenkins_build_url+'/artifact/logs/'+result.server_log_name
-            client_url = self.args.jenkins_build_url+'/artifact/logs/'+result.client_log_name
-            feature_hash_url = self.args.jenkins_build_url+'/artifact/logs/'+result.feature_hashMap_log
+            server_url = self._log_artifact_ref(result.server_log_name)
+            client_url = self._log_artifact_ref(result.client_log_name)
+            feature_hash_url = self._log_artifact_ref(result.feature_hashMap_log)
 
             if result.test_mode == "performance":   
                 if result.dataset == "picture" or result.dataset == "audio" or "picture-" in result.dataset or "audio-" in result.dataset:
@@ -500,17 +510,19 @@ class ResultCollector:
                         # TODO
                         log_line = f"{result.modelid};{result.benchmark_script};{result.dtype};{result.dataset};{result.parallel_type};{result.length_config};{result.num_prompt};{resultsJson['output_throughput']};{resultsJson['QPS']};{resultsJson['ttft']};{resultsJson['tpot']};{result.bs_group}\n"
                     elif result.benchmark_script == "serving":
+                        def _ms_to_s(v):
+                            return round(float(v) / 1000, 4) if v not in ("", None) else ""
                         if "embedding" in result.modelid.lower() or "rerank" in  result.modelid.lower():
-                            log_line = f"{result.modelid};{result.benchmark_script};{result.dtype};{result.dataset};{result.parallel_type};{result.length_config};{result.num_prompt};{result.request_rate};{resultsJson['total_token_throughput']}; \
-                                {round(float(resultsJson['Mean_E2EL'])/1000, 4) if resultsJson['Mean_E2EL'] != '' else '' }; \
-                                {round(float(resultsJson['Median_E2EL'])/1000, 4) if resultsJson['Median_E2EL'] != '' else '' }; \
-                                {round(float(resultsJson['P99_E2EL'])/1000, 4) if resultsJson['P99_E2EL'] != '' else '' };{server_url};{client_url};{result.server_py_command};{result.client_py_command};{result.case_id};{feature_hash_url}\n"
+                            mean_e2el = _ms_to_s(resultsJson['Mean_E2EL'])
+                            median_e2el = _ms_to_s(resultsJson['Median_E2EL'])
+                            p99_e2el = _ms_to_s(resultsJson['P99_E2EL'])
+                            log_line = f"{result.modelid};{result.benchmark_script};{result.dtype};{result.dataset};{result.parallel_type};{result.length_config};{result.num_prompt};{result.request_rate};{resultsJson['total_token_throughput']};{mean_e2el};{median_e2el};{p99_e2el};{server_url};{client_url};{result.server_py_command};{result.client_py_command};{result.case_id};{feature_hash_url}\n"
                         else:
-                            log_line = f"{result.modelid};{result.benchmark_script};{result.dtype};{result.dataset};{result.parallel_type};{result.length_config};{result.num_prompt};{result.request_rate};{resultsJson['output_throughput']}; \
-                                {round(float(resultsJson['ttft'])/1000, 4) if resultsJson['ttft'] != '' else '' }; \
-                                {round(float(resultsJson['tpot'])/1000, 4) if resultsJson['tpot'] != '' else ''}; \
-                                {round(float(resultsJson['P99_ttft'])/1000, 4) if resultsJson['P99_ttft'] != '' else ''}; \
-                                {round(float(resultsJson['P99_tpot'])/1000, 4) if resultsJson['P99_tpot'] != '' else ''};{server_url};{client_url};{result.server_py_command};{result.client_py_command};{result.case_id};{feature_hash_url}\n"
+                            ttft = _ms_to_s(resultsJson['ttft'])
+                            tpot = _ms_to_s(resultsJson['tpot'])
+                            p99_ttft = _ms_to_s(resultsJson['P99_ttft'])
+                            p99_tpot = _ms_to_s(resultsJson['P99_tpot'])
+                            log_line = f"{result.modelid};{result.benchmark_script};{result.dtype};{result.dataset};{result.parallel_type};{result.length_config};{result.num_prompt};{result.request_rate};{resultsJson['output_throughput']};{ttft};{tpot};{p99_ttft};{p99_tpot};{server_url};{client_url};{result.server_py_command};{result.client_py_command};{result.case_id};{feature_hash_url}\n"
             elif result.test_mode == "UT":
                 UT_map_summary_log = result.summary_log_name.replace(".log", "_mapping.log")
                 UT_jenkins_log = self.args.jenkins_build_url+'/artifact/logs/'+result.client_log_name
