@@ -7,7 +7,7 @@ on:
         description: "Full docker image URI (repo:tag)"
         type: string
         required: true
-        default: "public.ecr.aws/q9t5s3a7/vllm-ci-test-repo:latest-xpu"
+        default: "public.ecr.aws/q9t5s3a7/vllm-ci-test-repo:a1d4d86f23c86275a99e218c28682332dfbc16b4-xpu"
 
       vllm_repo:
         description: "vLLM git repository URL"
