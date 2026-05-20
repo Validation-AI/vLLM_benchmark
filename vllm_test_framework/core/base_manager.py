@@ -11,8 +11,8 @@ class Manager:
         self.args = args
         self.client = docker.from_env()
         self.docker_environement = {
-            "http_proxy": "http://proxy.ims.intel.com:911",
-            "https_proxy": "http://proxy.ims.intel.com:911",
+            #"http_proxy": "http://proxy.ims.intel.com:911",
+            #"https_proxy": "http://proxy.ims.intel.com:911",
             "no_proxy": "127.0.0.1,localhost,0.0.0.0",
             "LOCAL_UID": "",
             "LOCAL_GID": "",

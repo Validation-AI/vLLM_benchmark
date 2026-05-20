@@ -67,8 +67,8 @@ def start_docker_container(image_name, host_output_dir, extra_volumes=None):
         ipc_mode="host",
         privileged=True,
         environment={
-            "http_proxy": "http://proxy.ims.intel.com:911",
-            "https_proxy": "http://proxy.ims.intel.com:911",
+            #"http_proxy": "http://proxy.ims.intel.com:911",
+            #"https_proxy": "http://proxy.ims.intel.com:911",
             "no_proxy": "127.0.0.1,localhost,0.0.0.0",
         },
         volumes=volumes,
