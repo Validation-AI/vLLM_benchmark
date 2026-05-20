@@ -90,7 +90,7 @@ on:
       model_cache:
         description: "Model cache path override (leave empty for auto)"
         type: string
-        default: ""
+        default: "None"
 
       build_kernel:
         description: "Build vLLM XPU kernel (not implemented yet)"
