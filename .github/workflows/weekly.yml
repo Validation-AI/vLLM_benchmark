@@ -83,13 +83,14 @@ on:
         default: 1
 
       node_label:
-        description: "Node label (determines HF cache path)"
+        description: "Runner group label (must be a label registered on at least one self-hosted runner, e.g. B60_group). The actual machine picked is announced by the pick-node job."
         type: choice
         options:
+          - B60_group
           - 816792
           - bmg816790
           - gnr816789
-        default: "gnr816789"
+        default: "B60_group"
 
       model_cache:
         description: "Model cache path override (leave empty for auto)"
@@ -123,6 +124,13 @@ jobs:
   # ──────────────────────────────────────────────
   # Pick node: pin all downstream jobs to the same
   # physical runner picked from the node_label group.
+  #
+  # IMPORTANT: for the pinning to work, every self-hosted runner that may be
+  # picked here must register its own hostname as one of its labels (i.e.
+  # `./config.sh ... --labels B60_group,<hostname>`). The downstream jobs use
+  # `runner.name` (which equals the runner's registration name, typically the
+  # hostname) as a label. Without that, build-kernel/build-image/benchmark
+  # will hang at "Waiting for a runner to pick up this job...".
   # ──────────────────────────────────────────────
   pick-node:
     runs-on: [self-hosted, "${{ inputs.node_label }}"]
@@ -134,9 +142,16 @@ jobs:
         id: pick
         run: |
           set -euo pipefail
-          echo "Picked runner: ${RUNNER_NAME} (hostname: $(hostname))"
+          echo "::group::Picked runner info"
+          echo "RUNNER_NAME       : ${RUNNER_NAME}"
+          echo "hostname          : $(hostname)"
+          echo "hostname -s       : $(hostname -s)"
+          echo "node_label input  : ${{ inputs.node_label }}"
+          echo "::endgroup::"
+
+          # Downstream jobs runs-on [self-hosted, <RUNNER_NAME>]. This only works
+          # if RUNNER_NAME is registered as a custom label on this runner.
           echo "runner_name=${RUNNER_NAME}" >> "$GITHUB_OUTPUT"
-          # JSON array of labels for dynamic runs-on of downstream jobs.
           printf 'labels=["self-hosted","%s"]\n' "${RUNNER_NAME}" >> "$GITHUB_OUTPUT"
 
   # ──────────────────────────────────────────────
@@ -487,6 +502,28 @@ jobs:
             pip install "${install_list[@]}" || true
           fi
 
+      # ── Collect Docker image info (collect_env + pip list) ──
+      - name: Collect docker image info
+        id: docker_info
+        continue-on-error: true
+        env:
+          DOCKER_IMAGE: ${{ inputs.docker_image }}
+          NODE_LABEL: ${{ inputs.node_label }}
+        run: |
+          set -euo pipefail
+          . ~/miniforge3/bin/activate || true
+
+          DOCKER_REPO="${DOCKER_IMAGE%:*}"
+          DOCKER_TAG="${DOCKER_IMAGE##*:}"
+
+          python scripts/upload_docker_info.py \
+            --skip-db \
+            --docker-repo "${DOCKER_REPO}" \
+            --docker-tag "${DOCKER_TAG}" \
+            --workspace-path "${GITHUB_WORKSPACE}" \
+            --node-label "${NODE_LABEL}" \
+            2>&1 | tee "${GITHUB_WORKSPACE}/logs/collect_docker_info.log"
+
       # ── Run benchmark ──
       - name: Run benchmark
         env:
@@ -583,6 +620,59 @@ jobs:
             echo "| Run | [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |"
             echo ""
           } >> "$GITHUB_STEP_SUMMARY"
+
+          # ── Docker image info (collect_env + pip list) ──
+          DOCKER_INFO_DIR="${GITHUB_WORKSPACE}/collect_docker_info/logs/docker_info"
+          COLLECT_ENV_FILE="${DOCKER_INFO_DIR}/collect_env.info"
+          PIP_LIST_FILE="${DOCKER_INFO_DIR}/pip_list.json"
+
+          {
+            echo "## Docker Image Info"
+            echo ""
+            echo "**Image:** \`${{ inputs.docker_image }}\`"
+            echo ""
+
+            if [[ -f "${COLLECT_ENV_FILE}" ]]; then
+              echo "<details><summary>collect_env.py output</summary>"
+              echo ""
+              echo "\`\`\`"
+              # Cap at ~500 lines to stay within summary size limits
+              head -n 500 "${COLLECT_ENV_FILE}"
+              echo "\`\`\`"
+              echo ""
+              echo "</details>"
+              echo ""
+            else
+              echo "_collect_env.info not found (collection step may have failed)._"
+              echo ""
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ -f "${PIP_LIST_FILE}" ]]; then
+            python3 - "${PIP_LIST_FILE}" >> "$GITHUB_STEP_SUMMARY" <<'PIPEOF'
+          import json, sys
+          path = sys.argv[1]
+          try:
+              with open(path) as f:
+                  pkgs = json.load(f)
+          except Exception as e:
+              print(f"_Failed to parse pip_list.json: {e}_\n")
+              sys.exit(0)
+
+          pkgs = sorted(pkgs, key=lambda p: p.get("name", "").lower())
+          print(f"<details><summary>pip list ({len(pkgs)} packages)</summary>\n")
+          print("| Package | Version |")
+          print("| --- | --- |")
+          for p in pkgs:
+              name = str(p.get("name", "")).replace("|", "\\|")
+              ver = str(p.get("version", "")).replace("|", "\\|")
+              print(f"| `{name}` | `{ver}` |")
+          print("\n</details>\n")
+          PIPEOF
+          else
+            echo "_pip_list.json not found._" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
           # The Python block parses logs/summary_performance_NEW.log, tails per-case
           # server/client logs for the most relevant error line, and scans

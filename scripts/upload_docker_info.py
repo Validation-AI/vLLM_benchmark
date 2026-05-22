@@ -200,10 +200,12 @@ def main():
                             help='Database user')
     db_group.add_argument('--db-name', type=str, default='vllm_benchmarks',
                             help='Database name')
-    db_group.add_argument('--db-password', type=str, required=True,
+    db_group.add_argument('--db-password', type=str, default='',
                             help='Database password')
     db_group.add_argument('--db-table', type=str, default='vllm_nightly_docker_version',
                             help='Database table for test cases')
+    db_group.add_argument('--skip-db', action='store_true',
+                            help='Skip uploading collected info to the database')
 
     parser.add_argument('--docker-repo', type=str, default='gar-registry.caas.intel.com/pytorch/pytorch-ipex-spr',
                             help='Docker image repository for the server')
@@ -224,8 +226,10 @@ def main():
     # Collect info from the Docker image
     collect_env_path, pip_list_path = collect_docker_info(f"{args.docker_repo}:{args.docker_tag}", host_output_dir)
 
-    # Upload to DB (if table/password provided)
-    if args.db_table and args.db_password:
+    # Upload to DB (if table/password provided and not skipped)
+    if args.skip_db:
+        logger.info("--skip-db set; skipping DB upload.")
+    elif args.db_table and args.db_password:
         upload_docker_info_to_db(
             collect_env_path, pip_list_path, args
         )
