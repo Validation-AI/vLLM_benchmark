@@ -20,9 +20,9 @@ on:
         default: "main"
 
       vllm_xpu_kernel_repo:
-        description: "vLLM XPU kernel repo URL (leave empty to skip)"
+        description: "vLLM XPU kernel repo URL"
         type: string
-        default: ""
+        default: "https://github.com/vllm-project/vllm-xpu-kernels.git"
 
       vllm_xpu_kernel_branch:
         description: "vLLM XPU kernel branch"
@@ -570,7 +570,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          SUMMARY_FILE="${GITHUB_WORKSPACE}/logs/summary_performance_NEW.log"
           BENCHMARK_LOG="${GITHUB_WORKSPACE}/logs/benchmark.log"
 
           {
@@ -585,13 +584,18 @@ jobs:
             echo ""
           } >> "$GITHUB_STEP_SUMMARY"
 
-          if [[ -f "${SUMMARY_FILE}" ]]; then
-            python3 - "${SUMMARY_FILE}" >> "$GITHUB_STEP_SUMMARY" <<'PYEOF'
-          import sys, csv, html
+          # The Python block parses logs/summary_performance_NEW.log, tails per-case
+          # server/client logs for the most relevant error line, and scans
+          # logs/benchmark.log for launcher-level failures. All output goes to the
+          # GitHub job summary. Heredoc is single-quoted so $... is not expanded.
+          python3 - "${GITHUB_WORKSPACE}" >> "$GITHUB_STEP_SUMMARY" <<'PYEOF'
+          import sys, os, csv, re, glob
 
-          path = sys.argv[1]
+          workspace = sys.argv[1]
+          logs_dir = os.path.join(workspace, "logs")
+          summary_path = os.path.join(logs_dir, "summary_performance_NEW.log")
+          bench_log = os.path.join(logs_dir, "benchmark.log")
 
-          # Columns we want to show, mapped from possible header names in summary log.
           DISPLAY_COLS = [
               ("modelid",          "Model"),
               ("dtype",            "Dtype"),
@@ -606,59 +610,183 @@ jobs:
               ("P99_TPOT",         "P99_TPOT"),
           ]
 
-          def esc(v):
+          # (short_tag, pattern). First match wins. Order matters: most specific first.
+          TAG_PATTERNS = [
+              ("OOM",          re.compile(r"UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY|CUDA out of memory|XPU out of memory|OutOfMemoryError|\bout of memory\b", re.I)),
+              ("DEVICE_LOST",  re.compile(r"UR_RESULT_ERROR_DEVICE_LOST|device lost", re.I)),
+              ("RPC_DIED",     re.compile(r"RPCServer process died", re.I)),
+              ("ENGINE_FAILED",re.compile(r"Engine process failed to start|RuntimeError:\s*Engine", re.I)),
+              ("SEGFAULT",     re.compile(r"Segmentation fault|Fatal Python error: Segmentation", re.I)),
+              ("INIT_FAIL",    re.compile(r"ValueError:\s*Initial test run failed", re.I)),
+              ("CONN_REFUSED", re.compile(r"ConnectionRefusedError|Connection refused", re.I)),
+              ("TIMEOUT",      re.compile(r"asyncio\.TimeoutError|\bTimeoutError\b|\btimed out\b|\btimeout\b", re.I)),
+              ("ACC_FAIL",     re.compile(r"ACC_FAILED", re.I)),
+          ]
+          LAUNCHER_RE = re.compile(r"\b(ERROR|Server container is not running|Traceback|docker\.errors|Cannot connect to the Docker daemon)\b")
+          # Scrub obvious secrets from any line we surface in the summary.
+          SCRUB_RE = re.compile(r"(HF_TOKEN|hf_token|api[_-]?key|--api-key)([=:\s]+)(\S+)", re.I)
+
+          MAX_DETAIL_BLOCKS = 20
+          MAX_LOG_LINES = 50
+          MAX_LINE_LEN = 300
+          MAX_TOTAL_CHARS = 700_000  # GitHub step-summary limit is 1 MB
+
+          out_lines = []
+          char_count = [0]
+
+          def emit(line=""):
+              s = str(line)
+              out_lines.append(s)
+              char_count[0] += len(s) + 1
+
+          def md_escape(v):
               if v is None:
                   return ""
               s = str(v).strip()
-              # Truncate and sanitize for markdown table cells
               s = s.replace("|", "\\|").replace("\n", " ").replace("\r", " ")
               if len(s) > 80:
                   s = s[:77] + "..."
               return s
 
-          with open(path, newline="") as f:
-              reader = csv.reader(f, delimiter=";", quotechar='"')
+          def scrub(line):
+              return SCRUB_RE.sub(lambda m: f"{m.group(1)}{m.group(2)}***", line)
+
+          def classify(text):
+              if not text:
+                  return None
+              for tag, pat in TAG_PATTERNS:
+                  if pat.search(text):
+                      return tag
+              return None
+
+          def resolve_log_path(name):
+              """Map a basename (possibly a URL) to a real file under logs/."""
+              if not name:
+                  return None
+              base = os.path.basename(name.strip())
+              if not base or base in ("None", "null", ""):
+                  return None
+              p = os.path.join(logs_dir, base)
+              return p if os.path.isfile(p) else None
+
+          def tail_file(path, max_lines=MAX_LOG_LINES):
+              if not path or not os.path.isfile(path):
+                  return []
               try:
-                  header = next(reader)
-              except StopIteration:
-                  print("*Empty summary log.*")
-                  sys.exit(0)
+                  with open(path, "r", errors="replace") as f:
+                      data = f.readlines()
+              except Exception as e:
+                  return [f"<<unable to read log: {e}>>"]
+              out = []
+              for ln in data[-max_lines:]:
+                  ln = ln.rstrip("\n")
+                  if len(ln) > MAX_LINE_LEN:
+                      ln = ln[:MAX_LINE_LEN] + " ...[trunc]"
+                  out.append(scrub(ln))
+              return out
 
-              header = [h.strip() for h in header]
-              idx = {name: header.index(name) for name in [c[0] for c in DISPLAY_COLS] if name in header}
+          def first_error_line(path):
+              """Return the first line in `path` matching any known error pattern."""
+              if not path or not os.path.isfile(path):
+                  return None
+              try:
+                  with open(path, "r", errors="replace") as f:
+                      for ln in f:
+                          if classify(ln):
+                              ln = ln.rstrip("\n")
+                              if len(ln) > MAX_LINE_LEN:
+                                  ln = ln[:MAX_LINE_LEN] + " ...[trunc]"
+                              return scrub(ln)
+              except Exception:
+                  return None
+              return None
 
-              print("### Performance Summary")
-              print("")
-              print("| " + " | ".join(label for _, label in DISPLAY_COLS) + " | Status |")
-              print("|" + " --- |" * (len(DISPLAY_COLS) + 1))
+          def parse_failure_row(row):
+              """Detect a server-failure summary row and return (msg, case_id, server_log_basename).
 
-              total = ok = failed = 0
-              for row in reader:
+              Schemas written by result_collector.write_summary_log on server failure:
+                non-accuracy (10 cols): modelid;script;dtype;dataset;parallel_type;length;num_prompt;case_id;server_error;server_url
+                accuracy     ( 9 cols): modelid;script;dtype;dataset;parallel_type;length;case_id;server_error;server_url
+              """
+              if len(row) == 10:
+                  return row[8], row[7], row[9]
+              if len(row) == 9:
+                  return row[7], row[6], row[8]
+              return None, None, None
+
+          # ────────────────────────────────────────────────────────────────
+          # Parse summary file
+          # ────────────────────────────────────────────────────────────────
+          failures = []           # list of dicts {tag, model, case_id, msg, server_log, client_log}
+          seen_server_logs = set()
+          total = ok = failed = 0
+
+          if not os.path.isfile(summary_path):
+              emit("*No performance summary file found.*")
+              emit("")
+          else:
+              with open(summary_path, newline="") as f:
+                  rows = list(csv.reader(f, delimiter=";", quotechar='"'))
+
+              header = [h.strip() for h in (rows[0] if rows else [])]
+              # Heuristic: treat first row as header only if it contains at least one known column name.
+              known = {c[0] for c in DISPLAY_COLS} | {"server_log", "client_log", "case_id"}
+              has_header = any(h in known for h in header)
+              if has_header:
+                  data_rows = rows[1:]
+                  idx = {name: header.index(name) for name in known if name in header}
+              else:
+                  data_rows = rows
+                  idx = {}
+
+              emit("### Performance Summary")
+              emit("")
+              emit("| " + " | ".join(label for _, label in DISPLAY_COLS) + " | Status |")
+              emit("|" + " --- |" * (len(DISPLAY_COLS) + 1))
+
+              for row in data_rows:
                   if not row or not any(c.strip() for c in row):
                       continue
                   total += 1
 
-                  # Detect failure rows first (short row or contains server error marker).
-                  row_text = " ".join(row)
-                  is_short = len(row) < len(header) - 2
-                  is_server_fail = "Server failed" in row_text or "server_error" in row_text
+                  srv_err, case_id, srv_log_ref = parse_failure_row(row)
+                  is_server_fail = bool(srv_err) and ("error" in srv_err.lower() or "fail" in srv_err.lower() or "not executed" in srv_err.lower())
+                  is_short = (not is_server_fail) and bool(header) and len(row) < len(header) - 2
+
+                  # Track server log basenames so we can later spot orphans.
+                  for cell in row:
+                      c = (cell or "").strip()
+                      if c.endswith(".log") and os.path.basename(c).startswith("server_"):
+                          seen_server_logs.add(os.path.basename(c))
 
                   cells = []
                   for key, _ in DISPLAY_COLS:
                       i = idx.get(key)
-                      # For failure rows, only emit cells that exist in the truncated schema
-                      # (model/dtype/parallel/in-out/num_prompts) — leave metric cells blank.
                       if (is_short or is_server_fail) and key in ("request_rate", "token_throughput", "TTFT", "TPOT", "P99_TTFT", "P99_TPOT"):
                           cells.append("")
                       else:
-                          cells.append(esc(row[i]) if i is not None and i < len(row) else "")
+                          cells.append(md_escape(row[i]) if i is not None and i < len(row) else "")
 
                   if is_server_fail:
-                      status = "FAIL (server)"
+                      srv_log_path = resolve_log_path(srv_log_ref)
+                      tag = classify(srv_err) or classify(first_error_line(srv_log_path) or "") or "SERVER_FAIL"
+                      status = tag
                       failed += 1
+                      failures.append({
+                          "tag": tag, "model": row[0] if row else "",
+                          "case_id": case_id or "",
+                          "msg": (srv_err or "").strip(),
+                          "server_log": srv_log_path,
+                          "client_log": None,
+                      })
                   elif is_short:
                       status = "FAIL"
                       failed += 1
+                      failures.append({
+                          "tag": "FAIL", "model": row[0] if row else "",
+                          "case_id": "", "msg": "",
+                          "server_log": None, "client_log": None,
+                      })
                   else:
                       tp_i = idx.get("token_throughput")
                       tp_val = row[tp_i].strip() if tp_i is not None and tp_i < len(row) else ""
@@ -667,35 +795,142 @@ jobs:
                           status = "PASS"
                           ok += 1
                       except (ValueError, TypeError):
-                          status = "FAIL"
+                          srv_ref = row[idx["server_log"]] if "server_log" in idx and idx["server_log"] < len(row) else ""
+                          cli_ref = row[idx["client_log"]] if "client_log" in idx and idx["client_log"] < len(row) else ""
+                          srv_path = resolve_log_path(srv_ref)
+                          cli_path = resolve_log_path(cli_ref)
+                          err = first_error_line(srv_path) or first_error_line(cli_path)
+                          tag = classify(err or "") or "FAIL"
+                          status = tag
                           failed += 1
+                          ci = idx.get("case_id")
+                          failures.append({
+                              "tag": tag, "model": row[0] if row else "",
+                              "case_id": row[ci] if ci is not None and ci < len(row) else "",
+                              "msg": err or "",
+                              "server_log": srv_path, "client_log": cli_path,
+                          })
 
-                  print("| " + " | ".join(cells) + f" | {status} |")
+                  emit("| " + " | ".join(cells) + f" | {status} |")
 
-              print("")
-              print(f"**Total:** {total} &nbsp;&nbsp; **Pass:** {ok} &nbsp;&nbsp; **Fail:** {failed}")
-              print("")
+              emit("")
+              emit(f"**Total:** {total} &nbsp;&nbsp; **Pass:** {ok} &nbsp;&nbsp; **Fail:** {failed}")
+              emit("")
+
+          # ────────────────────────────────────────────────────────────────
+          # Orphan log scan: server_*.log on disk that has no summary row
+          # ────────────────────────────────────────────────────────────────
+          orphans = []
+          if os.path.isdir(logs_dir):
+              for srv_path in sorted(glob.glob(os.path.join(logs_dir, "server_*.log"))):
+                  base = os.path.basename(srv_path)
+                  if base in seen_server_logs:
+                      continue
+                  cli_base = base[len("server_"):]
+                  cli_path = resolve_log_path(cli_base)
+                  model = cli_base.split("_")[0]
+                  err = first_error_line(srv_path) or first_error_line(cli_path)
+                  tag = classify(err or "") or "NO_SUMMARY"
+                  orphans.append({
+                      "tag": tag, "model": model,
+                      "case_id": base, "msg": err or "",
+                      "server_log": srv_path, "client_log": cli_path,
+                  })
+
+          if orphans:
+              emit("### Orphan Cases (no summary row)")
+              emit("")
+              emit("| Model | Server log | Status |")
+              emit("| --- | --- | --- |")
+              for o in orphans:
+                  emit(f"| {md_escape(o['model'])} | `{md_escape(o['case_id'])}` | {o['tag']} |")
+              emit("")
+              failures.extend(orphans)
+              failed += len(orphans)
+              total += len(orphans)
+              emit(f"_Updated totals — Total: {total} · Pass: {ok} · Fail: {failed}_")
+              emit("")
+
+          # ────────────────────────────────────────────────────────────────
+          # Per-case failure detail blocks
+          # ────────────────────────────────────────────────────────────────
+          if failures:
+              emit("### Failed Case Details")
+              emit("")
+              shown = 0
+              for fobj in failures:
+                  if shown >= MAX_DETAIL_BLOCKS:
+                      emit(f"_... {len(failures) - shown} more failed case(s) omitted; see uploaded artifact._")
+                      emit("")
+                      break
+                  if char_count[0] > MAX_TOTAL_CHARS:
+                      emit("_... truncated to keep job summary under size limit; see uploaded artifact._")
+                      emit("")
+                      break
+                  title = " · ".join(x for x in (fobj["tag"], fobj.get("model", ""), fobj.get("case_id", "")) if x)
+                  emit(f"<details><summary>FAIL · {title}</summary>")
+                  emit("")
+                  if fobj.get("msg"):
+                      emit(f"**Error:** `{scrub(fobj['msg'])[:300]}`")
+                      emit("")
+                  for label, path in (("Server log", fobj.get("server_log")),
+                                       ("Client log", fobj.get("client_log"))):
+                      if not path:
+                          continue
+                      emit(f"**{label}:** `{os.path.basename(path)}` (last {MAX_LOG_LINES} lines)")
+                      emit("")
+                      emit("```")
+                      for ln in tail_file(path):
+                          emit(ln)
+                      emit("```")
+                      emit("")
+                  emit("</details>")
+                  emit("")
+                  shown += 1
+
+          # ────────────────────────────────────────────────────────────────
+          # Launcher-level errors from benchmark.log
+          # ────────────────────────────────────────────────────────────────
+          if os.path.isfile(bench_log):
+              hits = []
+              try:
+                  with open(bench_log, "r", errors="replace") as f:
+                      for ln in f:
+                          if LAUNCHER_RE.search(ln):
+                              ln = ln.rstrip("\n")
+                              if len(ln) > MAX_LINE_LEN:
+                                  ln = ln[:MAX_LINE_LEN] + " ...[trunc]"
+                              hits.append(scrub(ln))
+                              if len(hits) >= 20:
+                                  break
+              except Exception:
+                  pass
+              if hits:
+                  emit("### Launcher Errors")
+                  emit("")
+                  emit("<details><summary>First 20 launcher error lines from benchmark.log</summary>")
+                  emit("")
+                  emit("```")
+                  for ln in hits:
+                      emit(ln)
+                  emit("```")
+                  emit("</details>")
+                  emit("")
+
+              # Always include a tail of benchmark.log as a last-resort context block
+              emit("<details><summary>Benchmark log (last 50 lines)</summary>")
+              emit("")
+              emit("```")
+              for ln in tail_file(bench_log, MAX_LOG_LINES):
+                  emit(ln)
+              emit("```")
+              emit("</details>")
+              emit("")
+
+          emit("_Full logs (server/client commands, per-case logs, raw summary) are available in the uploaded artifact._")
+
+          sys.stdout.write("\n".join(out_lines) + "\n")
           PYEOF
-          else
-            echo "*No performance summary file found.*" >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-          # Tail of benchmark log
-          {
-            echo ""
-            echo "<details><summary>Benchmark log (last 50 lines)</summary>"
-            echo ""
-            echo '```'
-            if [[ -f "${BENCHMARK_LOG}" ]]; then
-              tail -50 "${BENCHMARK_LOG}"
-            else
-              echo "No benchmark log found."
-            fi
-            echo '```'
-            echo "</details>"
-            echo ""
-            echo "_Full logs (server/client commands, per-case logs, raw summary) are available in the uploaded artifact._"
-          } >> "$GITHUB_STEP_SUMMARY"
 
       # ── Upload artifacts ──
       - name: Upload logs
