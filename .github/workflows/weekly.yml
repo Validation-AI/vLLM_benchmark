@@ -84,7 +84,7 @@ on:
 
       node_label:
         description: "Node label (determines HF cache path)"
-        type: string
+        type: choice
         options:
           - 816792
           - bmg816790
@@ -97,45 +97,253 @@ on:
         default: "None"
 
       build_kernel:
-        description: "Build vLLM XPU kernel (not implemented yet)"
+        description: "Build vLLM XPU kernel wheel from source"
         type: boolean
         default: false
 
       build_image:
-        description: "Build vLLM docker image (not implemented yet)"
+        description: "Build vLLM docker image (uses built kernel if build_kernel=true)"
         type: boolean
         default: false
+
+      vllm_xpu_kernel_build_docker:
+        description: "Docker image used to build the vLLM XPU kernel wheel"
+        type: string
+        default: "pytorch/manylinux2_28-builder:xpu-v2.11.0-rc6"
+
+      kernel_whl_url:
+        description: "Pre-built kernel wheel URL or local path (skips kernel build during image build)"
+        type: string
+        default: ""
 
   # schedule:
   #   - cron: '0 0 * * 1'  # Weekly Monday midnight UTC
 
 jobs:
   # ──────────────────────────────────────────────
-  # Stub: Build Kernel (future)
+  # Pick node: pin all downstream jobs to the same
+  # physical runner picked from the node_label group.
+  # ──────────────────────────────────────────────
+  pick-node:
+    runs-on: [self-hosted, "${{ inputs.node_label }}"]
+    outputs:
+      runner_name: ${{ steps.pick.outputs.runner_name }}
+      labels: ${{ steps.pick.outputs.labels }}
+    steps:
+      - name: Record picked runner
+        id: pick
+        run: |
+          set -euo pipefail
+          echo "Picked runner: ${RUNNER_NAME} (hostname: $(hostname))"
+          echo "runner_name=${RUNNER_NAME}" >> "$GITHUB_OUTPUT"
+          # JSON array of labels for dynamic runs-on of downstream jobs.
+          printf 'labels=["self-hosted","%s"]\n' "${RUNNER_NAME}" >> "$GITHUB_OUTPUT"
+
+  # ──────────────────────────────────────────────
+  # Build Kernel: build vllm_xpu_kernel wheel
   # ──────────────────────────────────────────────
   build-kernel:
     if: ${{ inputs.build_kernel == true }}
-    runs-on: [self-hosted, B60_group]
+    needs: [pick-node]
+    runs-on: ${{ fromJSON(needs.pick-node.outputs.labels) }}
+    timeout-minutes: 90
+    env:
+      KERNEL_REPO: ${{ inputs.vllm_xpu_kernel_repo }}
+      KERNEL_BRANCH: ${{ inputs.vllm_xpu_kernel_branch }}
+      KERNEL_BUILD_DOCKER: ${{ inputs.vllm_xpu_kernel_build_docker }}
+      EXTRA_ENV: ${{ inputs.extra_ENV }}
     steps:
-      - name: Placeholder
-        run: echo "TODO - Build vLLM XPU kernel not yet implemented"
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare workspace
+        run: |
+          sudo chmod -R 777 "$GITHUB_WORKSPACE" || true
+          rm -rf "$GITHUB_WORKSPACE/logs" "$GITHUB_WORKSPACE/vllm_xpu_kernel"
+          mkdir -p "$GITHUB_WORKSPACE/logs"
+
+      - name: Validate kernel inputs
+        run: |
+          set -euo pipefail
+          if [[ -z "${KERNEL_REPO}" ]]; then
+            echo "::error::build_kernel=true requires vllm_xpu_kernel_repo to be set"
+            exit 1
+          fi
+
+      - name: Clone vllm_xpu_kernel
+        run: |
+          set -euo pipefail
+          set -x
+          branch="${KERNEL_BRANCH:-main}"
+          git clone --branch "${branch}" --single-branch "${KERNEL_REPO}" vllm_xpu_kernel
+          git -C vllm_xpu_kernel log -1 --pretty=format:'kernel commit: %H%n%s'
+
+      - name: Build kernel wheel in docker
+        run: |
+          set -euo pipefail
+          set -x
+          exec > >(tee -a "$GITHUB_WORKSPACE/logs/build_kernel.log") 2>&1
+
+          CONTAINER_NAME=build_vllm_xpu_kernel_${GITHUB_RUN_ID}
+          cleanup_docker() { docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true; }
+          trap cleanup_docker EXIT INT TERM
+
+          docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+
+          docker run \
+            -u root \
+            --name "$CONTAINER_NAME" \
+            -v "$GITHUB_WORKSPACE":/workspace \
+            --network host --ipc=host \
+            --env EXTRA_ENV="${EXTRA_ENV:-}" \
+            --privileged \
+            "${KERNEL_BUILD_DOCKER}" \
+            bash /workspace/scripts/build_vllm_xpu_kernel.sh "${KERNEL_BRANCH:-main}"
+
+          WHL=$(ls "$GITHUB_WORKSPACE"/vllm_xpu_kernel/dist/*.whl | head -n1)
+          if [[ -z "${WHL}" ]]; then
+            echo "::error::Kernel wheel not found in vllm_xpu_kernel/dist"
+            exit 1
+          fi
+
+          mkdir -p "$GITHUB_WORKSPACE/logs/kernel_dist"
+          cp "${WHL}" "$GITHUB_WORKSPACE/logs/kernel_dist/"
+          echo "$(basename "${WHL}")" > "$GITHUB_WORKSPACE/logs/kernel_dist/wheel_name.txt"
+          echo "[INFO] Kernel wheel: ${WHL}"
+
+      - name: Upload kernel wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vllm-xpu-kernel-wheel-${{ github.run_number }}
+          path: logs/kernel_dist/
+          retention-days: 14
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-kernel-logs-${{ github.run_number }}
+          path: logs/
+          retention-days: 14
 
   # ──────────────────────────────────────────────
-  # Stub: Build Image (future)
+  # Build Image: build vLLM docker image
   # ──────────────────────────────────────────────
   build-image:
     if: ${{ inputs.build_image == true }}
-    needs: [build-kernel]
-    runs-on: [self-hosted, B60_group]
+    needs: [pick-node, build-kernel]
+    # build-kernel is optional: allow this job when build-kernel succeeded or was skipped
+    # (e.g. when build_kernel=false and a prebuilt kernel_whl_url is provided).
+    runs-on: ${{ fromJSON(needs.pick-node.outputs.labels) }}
+    timeout-minutes: 120
+    env:
+      DOCKER_IMAGE: ${{ inputs.docker_image }}
+      VLLM_REPO: ${{ inputs.vllm_repo }}
+      VLLM_BRANCH: ${{ inputs.vllm_branch }}
+      KERNEL_WHL_URL: ${{ inputs.kernel_whl_url }}
+      BUILD_KERNEL_RESULT: ${{ needs.build-kernel.result }}
     steps:
-      - name: Placeholder
-        run: echo "TODO - Build vLLM docker image not yet implemented"
+      - name: Guard on kernel build result
+        run: |
+          set -euo pipefail
+          # If build_kernel was requested, it must have succeeded.
+          if [[ "${{ inputs.build_kernel }}" == "true" && "${BUILD_KERNEL_RESULT}" != "success" ]]; then
+            echo "::error::build-kernel did not succeed (result=${BUILD_KERNEL_RESULT}); aborting build-image"
+            exit 1
+          fi
+          # If build_kernel was not requested, we need a pre-built kernel URL/path.
+          if [[ "${{ inputs.build_kernel }}" != "true" && -z "${KERNEL_WHL_URL}" ]]; then
+            echo "::error::build_kernel=false and kernel_whl_url is empty; cannot resolve kernel wheel"
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare workspace
+        run: |
+          sudo chmod -R 777 "$GITHUB_WORKSPACE" || true
+          rm -rf "$GITHUB_WORKSPACE/logs" "$GITHUB_WORKSPACE/vllm"
+          mkdir -p "$GITHUB_WORKSPACE/logs"
+
+      - name: Download kernel wheel artifact
+        if: ${{ inputs.build_kernel == true }}
+        uses: actions/download-artifact@v4
+        with:
+          name: vllm-xpu-kernel-wheel-${{ github.run_number }}
+          path: logs/kernel_dist
+
+      - name: Clone vllm repo
+        run: |
+          set -euo pipefail
+          set -x
+          if [[ -d vllm/.git ]]; then
+            git -C vllm fetch --all --prune
+          else
+            rm -rf vllm
+            git clone "${VLLM_REPO}" vllm
+          fi
+          git -C vllm checkout "${VLLM_BRANCH}"
+
+      - name: Build docker image
+        run: |
+          set -euo pipefail
+          set -x
+          exec > >(tee -a "$GITHUB_WORKSPACE/logs/build_image.log") 2>&1
+
+          # Resolve kernel wheel reference for requirements/xpu.txt
+          if [[ "${{ inputs.build_kernel }}" == "true" ]]; then
+            WHL_FILE=$(ls "$GITHUB_WORKSPACE"/logs/kernel_dist/*.whl | head -n1)
+            if [[ -z "${WHL_FILE}" ]]; then
+              echo "::error::No kernel wheel found in logs/kernel_dist"
+              exit 1
+            fi
+            # Copy wheel into docker build context and reference relative path.
+            mkdir -p "$GITHUB_WORKSPACE/vllm/kernel_dist"
+            cp "${WHL_FILE}" "$GITHUB_WORKSPACE/vllm/kernel_dist/"
+            KERNEL_REF="./kernel_dist/$(basename "${WHL_FILE}")"
+          else
+            KERNEL_REF="${KERNEL_WHL_URL}"
+          fi
+          echo "[INFO] Using kernel reference: ${KERNEL_REF}"
+
+          cd "$GITHUB_WORKSPACE/vllm"
+          if [[ -f requirements/xpu.txt ]]; then
+            sed -i "s|^[[:space:]#]*vllm_xpu_kernels.*|vllm_xpu_kernels @ ${KERNEL_REF}|g" requirements/xpu.txt
+          fi
+
+          docker build \
+            --build-arg http_proxy="${http_proxy:-}" \
+            --build-arg https_proxy="${https_proxy:-}" \
+            --build-arg HTTP_PROXY="${http_proxy:-}" \
+            --build-arg HTTPS_PROXY="${https_proxy:-}" \
+            -f docker/Dockerfile.xpu \
+            -t "${DOCKER_IMAGE}" \
+            --shm-size=4g \
+            .
+
+          docker image inspect "${DOCKER_IMAGE}" >/dev/null
+          echo "[INFO] Built image: ${DOCKER_IMAGE}"
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-image-logs-${{ github.run_number }}
+          path: logs/
+          retention-days: 14
 
   # ──────────────────────────────────────────────
   # Main: Benchmark
   # ──────────────────────────────────────────────
   benchmark:
-    runs-on: [self-hosted, B60_group]
+    needs: [pick-node, build-kernel, build-image]
+    if: |
+      always() &&
+      needs.pick-node.result == 'success' &&
+      (needs.build-kernel.result == 'success' || needs.build-kernel.result == 'skipped') &&
+      (needs.build-image.result == 'success' || needs.build-image.result == 'skipped')
+    runs-on: ${{ fromJSON(needs.pick-node.outputs.labels) }}
     timeout-minutes: 1440
 
     steps:
@@ -236,17 +444,21 @@ jobs:
           mkdir -p ${GITHUB_WORKSPACE}/logs/TEST_CASES
           cp "${resolved}" ${GITHUB_WORKSPACE}/logs/TEST_CASES/ || true
 
-      # ── Pull docker image ──
+      # ── Pull docker image (skip pull when image was just built locally) ──
       - name: Pull docker image
         env:
           DOCKER_IMAGE: ${{ inputs.docker_image }}
+          IMAGE_BUILT_LOCALLY: ${{ inputs.build_image }}
         run: |
           set -euo pipefail
-          if ! docker image inspect "${DOCKER_IMAGE}" > /dev/null 2>&1; then
+          if docker image inspect "${DOCKER_IMAGE}" > /dev/null 2>&1; then
+            echo "Image already exists locally: ${DOCKER_IMAGE}"
+          elif [[ "${IMAGE_BUILT_LOCALLY}" == "true" ]]; then
+            echo "::error::build_image=true but image ${DOCKER_IMAGE} not present on runner"
+            exit 1
+          else
             echo "Pulling image: ${DOCKER_IMAGE}"
             docker pull "${DOCKER_IMAGE}"
-          else
-            echo "Image already exists: ${DOCKER_IMAGE}"
           fi
 
       # ── Install host dependencies ──
