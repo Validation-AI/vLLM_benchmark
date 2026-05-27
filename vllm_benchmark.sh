@@ -344,7 +344,7 @@ elif [[ "$test_mode" == "accuracy_serving" ]];then
     else
         lm_eval_extraArgs="--gen_kwargs='temperature=0.3,top_p=0.2,top_k=5'"
     fi
-    test_cmd="timeout -s KILL "${TIMEOUT}s" lm_eval --model local-chat-completions --task ${acc_task} --num_fewshot 5 --batch_size 1 --model_args \"model=${modelid},base_url=http://localhost:8123/v1/chat/completions,max_gen_toks=4096,num_concurrent=64\" --apply_chat_template  --output_path ./lm_eval_output --log_samples ${lm_eval_extraArgs} ${lm_eval_confirm_unsafe} "
+    test_cmd="timeout -s KILL "${TIMEOUT}s" lm_eval --model local-chat-completions --task ${acc_task} --num_fewshot 5 --batch_size 1 --model_args \"model=${modelid},base_url=http://localhost:8123/v1/chat/completions,max_gen_toks=4096,num_concurrent=16,timeout=5000,max_retries=5\" --apply_chat_template  --output_path ./lm_eval_output --log_samples ${lm_eval_extraArgs} ${lm_eval_confirm_unsafe} "
     RESULT=$(eval "$test_cmd" ; exit ${PIPESTATUS[0]})
     RESULT=${PIPESTATUS[0]}  # Capture the exit status of $COMMAND
 
