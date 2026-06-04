@@ -165,7 +165,7 @@ microbenchmark_map = {
 }
 microbenchmark_script_path = "vllm-xpu-kernels_scripts"
 
-upload_artifactory_path = "https://ubit-artifactory-ba.intel.com/artifactory/aipc_releases-ba-local/gpu/new/validation/IPEX/nightly/PVC/UBUNTU/VLLM_nightly/vllm_kernel/logsAsDockerTAG"
+upload_artifactory_path = "https://af01p-ba.devtools.intel.com/artifactory/aipc_releases-ba-local/gpu/new/validation/IPEX/nightly/PVC/UBUNTU/VLLM_nightly/vllm_kernel/logsAsDockerTAG"
 nightly_kernel_DBtable = "vllm_nightly_microbenchmark"
 
 def update_hardware_info():

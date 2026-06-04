@@ -32,10 +32,10 @@ class Manager:
                 "bind": ws_path_mapInDocker,
                 "mode": "rw"
             },
-            triton_cache_path: {
-                "bind": "/root/.cache/neo_compiler_cache",
-                "mode": "rw"
-            },
+            #triton_cache_path: {
+            #    "bind": "/root/.cache/neo_compiler_cache",
+            #    "mode": "rw"
+            #},
             "/dev/dri/by-path": {
                 "bind": "/dev/dri/by-path",
                 "mode": "rw"

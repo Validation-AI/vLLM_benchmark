@@ -1,6 +1,7 @@
 import csv
 from datetime import datetime
 import hashlib
+import math
 import os
 import time
 import json
@@ -210,7 +211,10 @@ class DBUpdater:
                     for key, value in row.items():
                         clean_key = self._strip_ylabel(key)
                         if self._is_metric_col(key):
-                            metrics[clean_key] = float(value) if value else None
+                            v = float(value) if value else None
+                            if v is not None and (math.isnan(v) or math.isinf(v)):
+                                v = None
+                            metrics[clean_key] = v
                         else:
                             params[clean_key] = value if value != '' else None
                     params_str = json.dumps(params, sort_keys=True)

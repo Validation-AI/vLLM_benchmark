@@ -113,7 +113,7 @@ class TestCase:
             self.extra_ENV += f" {fp8_e5m2_ENV} "
         elif explicit_fp8_dtype:
             raise ValueError(f"FP8 dtype must specify e4m3 or e5m2, but got {self.dtype}")
-        if explicit_fp8_dtype and fp8_args not in self.extra_args and "accuracy" not in self.test_mode:
+        if explicit_fp8_dtype and fp8_args not in self.extra_args and self.test_mode != "accuracy":
             self.extra_args += f" {fp8_args} "
         elif self.test_mode == "accuracy":
             self.extra_args = self.extra_args.split(",") if self.extra_args else []
