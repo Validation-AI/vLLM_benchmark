@@ -1,0 +1,45 @@
+{
+  "_comment": "Copy this file to orchestrator_config.json and fill in real values. Do NOT commit orchestrator_config.json (it contains credentials).",
+
+  "jenkins_url":   "http://your-jenkins-server:8080",
+  "jenkins_job":   "ipex_pytorch_cpu_vllm_benchmark_serving-tuning-GNR-weekly",
+  "jenkins_user":  "your-jenkins-username",
+  "jenkins_token": "your-jenkins-api-token",
+
+  "_comment_manifest": "Path to the Excel manifest (relative to workspace root or absolute).",
+  "manifest_path": "automation/manifests/serving_tuning/automation_v0.xlsx",
+
+  "_comment_workspace": "Absolute path to the repo root on the machine running the orchestrator.",
+  "workspace": "/localdisk2/jenkins_dir/workspace/ipex_pytorch_cpu_vllm_benchmark_regular-serving-GNR-weekly",
+
+  "_comment_state": "Latest per-row state written by writeback_results.py; used for staleness checks.",
+  "writeback_state_path": "automation/history/serving_tuning/latest/row_state.json",
+
+  "_comment_triggers": "Directory where trigger records (JSON) are saved.",
+  "trigger_record_dir": "automation/generated/triggers",
+
+  "_comment_polling": "How long to wait in the Jenkins queue before giving up (seconds).",
+  "queue_wait_timeout_s": 300,
+
+  "_comment_polling2": "How often to poll build status (seconds).",
+  "poll_interval_s": 60,
+
+  "_comment_timeout": "Give up polling if build takes longer than this (seconds). 4h default.",
+  "build_timeout_s": 14400,
+
+  "_comment_job_params": "These are merged on top of the defaults in trigger_jenkins.py.",
+  "job_params": {
+    "benchmark_script": "serving_tuning",
+    "manifest_mode":    "true",
+    "hardware":         "GNR",
+    "NODE_LABEL":       "LLM_SPR_aws06",
+    "dtypes":           "bfloat16",
+    "length_configs":   "1024/128",
+    "tuning_slas":      "100,5000",
+    "engine_type":      "v1",
+    "docker_name":      "vllm-cpu-env",
+    "vllm_branch":      "main",
+    "device":           "cpu",
+    "docker_pull":      "True"
+  }
+}
