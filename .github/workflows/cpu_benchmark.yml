@@ -395,47 +395,6 @@ jobs:
               exit 1
             fi
 
-            docker_env_args=(
-              -e modelid="${model_id}"
-              -e dtype="${DEFAULT_DTYPE}"
-              -e backend="${BACKEND}"
-              -e device="${DEVICE}"
-              -e dataset="${DATASET}"
-              -e test_mode="${TEST_MODE}"
-              -e tuning_slas="${TUNING_SLAS}"
-              -e docker_name="${DOCKER_NAME}"
-              -e conda_name="${CONDA_NAME}"
-              -e benchmark_script="${BENCHMARK_SCRIPT}"
-              -e request_rate="inf"
-              -e OPENAI_API_BASE="${OPENAI_API_BASE}"
-              -e pipeline_parallel="${pp}"
-              -e tp_socket="${tp}"
-              -e tensor_parallel="${TENSOR_PARALLEL}"
-              -e extra_args="${launch_args}"
-              -e length_config="${length_config}"
-              -e hardware="${HARDWARE}"
-              -e max_concurrency="${MAX_CONCURRENCY}"
-              -e dp_mode="${dp_mode}"
-              -e dp_size="${dp}"
-              -e enable_cpu_monitor="false"
-              -e CPU_MONITOR_INTERVAL_S="1"
-              -e BENCH_NUM_WARMUPS="${last_batch_size:-200}"
-              -e BENCH_TEMPERATURE=0
-              -e tp_backbone="${TP_BACKBONE}"
-              -e HF_TOKEN_FOR_SCRIPT="${HF_TOKEN_FOR_SCRIPT}"
-              -e NODE_PROXY="${NODE_PROXY}"
-              -e ROW_SERVER_LOG="${server_log}"
-              -e ROW_ID="${row_id}"
-              -e TUNING_RESULT_PATH="${container_result_path}"
-              -e CLIENT_LOG_PATH="/workspace1/logs/client_${safe_row_id}_Length-${length_config//\//-}.log"
-            )
-            if [[ -n "${last_batch_size}" ]]; then
-              docker_env_args+=(
-                -e TUNING_PERSISTED_BATCH_SIZE="${last_batch_size}"
-                -e TUNING_PERSISTED_BATCH_SOURCE="${history_source}"
-              )
-            fi
-
             launch_cmd=$(printf 'bash %q %q %q %q %q %q %q %q %q' \
               "/workspace/${server_script}" "${model_id}" "${DEFAULT_DTYPE}" "${DEVICE}" "${tp}" "${ENGINE_TYPE}" "${HARDWARE}" "${pp}" "${launch_args}")
             if [[ "${dp_mode}" == "router_dp" ]]; then
@@ -473,6 +432,47 @@ jobs:
             fi
 
             for length_config in "${length_list[@]}"; do
+              docker_env_args=(
+                -e modelid="${model_id}"
+                -e dtype="${DEFAULT_DTYPE}"
+                -e backend="${BACKEND}"
+                -e device="${DEVICE}"
+                -e dataset="${DATASET}"
+                -e test_mode="${TEST_MODE}"
+                -e tuning_slas="${TUNING_SLAS}"
+                -e docker_name="${DOCKER_NAME}"
+                -e conda_name="${CONDA_NAME}"
+                -e benchmark_script="${BENCHMARK_SCRIPT}"
+                -e request_rate="inf"
+                -e OPENAI_API_BASE="${OPENAI_API_BASE}"
+                -e pipeline_parallel="${pp}"
+                -e tp_socket="${tp}"
+                -e tensor_parallel="${TENSOR_PARALLEL}"
+                -e extra_args="${launch_args}"
+                -e length_config="${length_config}"
+                -e hardware="${HARDWARE}"
+                -e max_concurrency="${MAX_CONCURRENCY}"
+                -e dp_mode="${dp_mode}"
+                -e dp_size="${dp}"
+                -e enable_cpu_monitor="false"
+                -e CPU_MONITOR_INTERVAL_S="1"
+                -e BENCH_NUM_WARMUPS="${last_batch_size:-200}"
+                -e BENCH_TEMPERATURE=0
+                -e tp_backbone="${TP_BACKBONE}"
+                -e HF_TOKEN_FOR_SCRIPT="${HF_TOKEN_FOR_SCRIPT}"
+                -e NODE_PROXY="${NODE_PROXY}"
+                -e ROW_SERVER_LOG="${server_log}"
+                -e ROW_ID="${row_id}"
+                -e TUNING_RESULT_PATH="${container_result_path}"
+                -e CLIENT_LOG_PATH="/workspace1/logs/client_${safe_row_id}_Length-${length_config//\//-}.log"
+              )
+              if [[ -n "${last_batch_size}" ]]; then
+                docker_env_args+=(
+                  -e TUNING_PERSISTED_BATCH_SIZE="${last_batch_size}"
+                  -e TUNING_PERSISTED_BATCH_SOURCE="${history_source}"
+                )
+              fi
+
               docker run --rm \
                 --shm-size 10g \
                 --net=host \
@@ -488,7 +488,7 @@ jobs:
                 --env work_space="${WORKSPACE}" \
                 "${docker_env_args[@]}" \
                 "${docker_image}" \
-                /bin/bash -lc "cd /workspace1 && bash /workspace1/vllm_scripts/tuning_best_vllm.sh"
+                /bin/bash -lc "cd /workspace1 && bash /workspace1/tuning_best_vllm.sh"
 
               if [[ -f "${host_result_path}" ]]; then
                 result_status=$(python3 -c 'import json,sys; from pathlib import Path; print(json.loads(Path(sys.argv[1]).read_text()).get("status", "MODEL_ERROR"))' "${host_result_path}")
