@@ -55,7 +55,7 @@ on:
         type: string
       tuning_slas:
         required: false
-        default: 100,5000
+        default: "100,5000"
         type: string
       docker_name:
         required: true
