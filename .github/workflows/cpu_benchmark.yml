@@ -288,7 +288,7 @@ jobs:
             wait_for_server "${container_name}" "${dp_mode}" "${dp_size}" "${ROUTER_STARTUP_TIMEOUT_S}"
           }
 
-          while IFS=$'\t' read -r row_id model_id hfm02 hf124 hflegacy tp pp dp dp_mode row_extra last_batch_size history_source; do
+          while IFS=$'\x1f' read -r row_id model_id hfm02 hf124 hflegacy tp pp dp dp_mode row_extra last_batch_size history_source; do
             [[ -z "${row_id:-}" ]] && continue
             hf_path="$(pick_hf_path "${hfm02}" "${hf124}" "${hflegacy}")"
             if [[ -z "${hf_path}" ]]; then
@@ -439,7 +439,7 @@ jobs:
             docker exec "${container_name}" pkill -2 -f 'vllm.entrypoints.openai.api_server' >/dev/null 2>&1 || true
             docker stop "${container_name}" >/dev/null 2>&1 || true
             docker rm "${container_name}" >/dev/null 2>&1 || true
-          done < <(python3 -c 'import csv, json, sys; from pathlib import Path; rows=json.loads(Path(sys.argv[1]).read_text()); writer=csv.writer(sys.stdout, delimiter="\t", lineterminator="\n"); [writer.writerow([row.get("row_id", ""), row.get("model_id", ""), row.get("hugginface_path_185", ""), row.get("hugginface_path_124", ""), row.get("hugginface_path", ""), row.get("tp", ""), row.get("pp", ""), row.get("dp", ""), row.get("dp_mode", ""), row.get("extra_args", ""), row.get("last_batch_size", ""), row.get("history_source", "")]) for row in rows]' "${rows_json}")
+          done < <(python3 -c 'import csv, json, sys; from pathlib import Path; rows=json.loads(Path(sys.argv[1]).read_text()); writer=csv.writer(sys.stdout, delimiter="\x1f", lineterminator="\n"); [writer.writerow([row.get("row_id", ""), row.get("model_id", ""), row.get("hugginface_path_185", ""), row.get("hugginface_path_124", ""), row.get("hugginface_path", ""), row.get("tp", ""), row.get("pp", ""), row.get("dp", ""), row.get("dp_mode", ""), row.get("extra_args", ""), row.get("last_batch_size", ""), row.get("history_source", "")]) for row in rows]' "${rows_json}")
 
           python3 "${WORKSPACE}/automation/compile_serving_tuning_results.py" \
             --results-dir "${WORKSPACE}/logs/row_results" \
