@@ -5,11 +5,6 @@ rm -f *.log
 current_timestamp=$(date +%s)
 echo "Current timestamp in seconds: $current_timestamp"
 
-#unset http_proxy
-proxy_from_env="${NODE_PROXY:-${http_proxy:-${https_proxy:-http://proxy-iil.intel.com:911}}}"
-export http_proxy="${proxy_from_env}"
-export https_proxy="${proxy_from_env}"
-export no_proxy=".intel.com,127.0.0.1,localhost,10.239.177.31"
 hf auth login --token "$HF_TOKEN_FOR_SCRIPT"
 # pip install ray
 # ray stop

@@ -11,10 +11,6 @@ on:
         required: false
         default: "m6980m02"
         type: string
-      node_proxy:
-        required: false
-        default: http://proxy-iil.intel.com:911
-        type: string
       default_dtype:
         required: false
         default: bfloat16
@@ -91,7 +87,6 @@ jobs:
     runs-on: ${{ fromJSON(inputs.runner_labels || '["self-hosted","linux","x64"]') }}
     env:
       WORKSPACE: ${{ github.workspace }}
-      NODE_PROXY: ${{ inputs.node_proxy }}
       NODE_LABEL: "${{ inputs.node_label }}"
       DEFAULT_DTYPE: ${{ inputs.default_dtype }}
       BENCHMARK_SCRIPT: ${{ inputs.benchmark_script }}
@@ -350,8 +345,6 @@ jobs:
               extra_envs+=(-e VLLM_CPU_KVCACHE_SPACE="${VLLM_CPU_KVCACHE_SPACE}")
             fi
             docker run -t -d --shm-size 10g --net=host --ipc=host --privileged \
-              -e http_proxy="${NODE_PROXY}" \
-              -e https_proxy="${NODE_PROXY}" \
               -e no_proxy=.intel.com,127.0.0.1,localhost \
               "${extra_envs[@]}" \
               -e ROUTER_STARTUP_TIMEOUT_S="${ROUTER_STARTUP_TIMEOUT_S}" \
@@ -398,7 +391,6 @@ jobs:
                 -e BENCH_TEMPERATURE=0
                 -e tp_backbone="${TP_BACKBONE}"
                 -e HF_TOKEN_FOR_SCRIPT="${HF_TOKEN_FOR_SCRIPT}"
-                -e NODE_PROXY="${NODE_PROXY}"
                 -e ROW_SERVER_LOG="${server_log}"
                 -e ROW_ID="${row_id}"
                 -e TUNING_RESULT_PATH="${container_result_path}"
@@ -419,8 +411,6 @@ jobs:
                 -u root \
                 --privileged \
                 --entrypoint='' \
-                --env http_proxy="${NODE_PROXY}" \
-                --env https_proxy="${NODE_PROXY}" \
                 --env no_proxy=.intel.com \
                 -e HF_TOKEN_FOR_SCRIPT="${HF_TOKEN_FOR_SCRIPT}" \
                 --env work_space="${WORKSPACE}" \

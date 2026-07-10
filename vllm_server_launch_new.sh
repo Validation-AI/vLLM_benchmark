@@ -429,11 +429,6 @@ elif [[ "$device" == "xpu" ]]; then
         "VLLM_WORKER_MULTIPROC_METHOD=spawn"
     )
     if [[ "$hardware" == "BMG" ]]; then
-        # export http_proxy=http://proxy.ims.intel.com:911 #work,but slow
-        # export https_proxy=http://proxy.ims.intel.com:911
-        # export ftp_proxy=http://proxy.ims.intel.com:911
-        export https_proxy=http://dut7518pvc.jf.intel.com:44333  #fastest proxy
-        export http_proxy=http://dut7518pvc.jf.intel.com:44333
         huggingface-cli login --token "$HF_TOKEN_FOR_SCRIPT"
         xpu_cmd=(python3 -m vllm.entrypoints.openai.api_server --model "$modelid" --dtype=float16 --device=xpu --enforce-eager --port 8000 --block-size 32 --host 0.0.0.0)
     else
