@@ -1,0 +1,527 @@
+name: ipex-cpu-vllm-manifest-tuning
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner_labels:
+        required: true
+        default: '["self-hosted","linux","x64"]'
+        type: string
+      node_label:
+        required: false
+        default: ""
+        type: string
+      node_label_hint:
+        required: false
+        default: ""
+        type: string
+      node_proxy:
+        required: false
+        default: http://proxy-iil.intel.com:911
+        type: string
+      dtypes:
+        required: false
+        default: bfloat16
+        type: string
+      default_dtype:
+        required: false
+        default: bfloat16
+        type: string
+      dry_run:
+        required: false
+        default: false
+        type: boolean
+      benchmark_script:
+        required: false
+        default: serving_tuning
+        type: choice
+        options:
+          - serving_tuning
+      engine_type:
+        required: false
+        default: v0
+        type: string
+      hardware:
+        required: false
+        default: emr
+        type: string
+      base_extra_args:
+        required: false
+        default: ""
+        type: string
+      device:
+        required: false
+        default: cpu
+        type: choice
+        options:
+          - cpu
+      vllm_cpu_kvcache_space:
+        required: false
+        default: ""
+        type: string
+      cpu_visible_memory_nodes:
+        required: false
+        default: ""
+        type: string
+      router_startup_timeout_s:
+        required: false
+        default: 1200
+        type: string
+      backend:
+        required: false
+        default: vllm
+        type: string
+      dataset:
+        required: false
+        default: ShareGPT_V3_unfiltered_cleaned_split.json
+        type: string
+      test_mode:
+        required: false
+        default: performance
+        type: string
+      tuning_slas:
+        required: false
+        default: 100,5000
+        type: string
+      docker_name:
+        required: false
+        default: vllm-cpu-0.16.0
+        type: string
+      conda_name:
+        required: false
+        default: tgi
+        type: string
+      openai_api_base:
+        required: false
+        default: http://0.0.0.0:8000/v1
+        type: string
+      tensor_parallel:
+        required: false
+        default: false
+        type: boolean
+      length_configs:
+        required: false
+        default: default
+        type: string
+      max_concurrency:
+        required: false
+        default: default
+        type: string
+      tp_backbone:
+        required: false
+        default: mp
+        type: string
+      manifest_workbook_path:
+        required: false
+        default: ""
+        type: string
+      manifest_sheet_name:
+        required: false
+        default: serving_tuning
+        type: string
+      row_filter:
+        required: false
+        default: ""
+        type: string
+      build_number:
+        required: false
+        default: ""
+        type: string
+      build_url:
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  manifest:
+    runs-on: ${{ fromJSON(inputs.runner_labels || '["self-hosted","linux","x64"]') }}
+    env:
+      WORKSPACE: ${{ github.workspace }}
+      NODE_PROXY: ${{ inputs.node_proxy }}
+      NODE_LABEL: ${{ inputs.node_label }}
+      NODE_LABEL_HINT: ${{ inputs.node_label_hint }}
+      DTYPES: ${{ inputs.dtypes }}
+      DEFAULT_DTYPE: ${{ inputs.default_dtype }}
+      DRY_RUN: ${{ inputs.dry_run }}
+      BENCHMARK_SCRIPT: ${{ inputs.benchmark_script }}
+      ENGINE_TYPE: ${{ inputs.engine_type }}
+      HARDWARE: ${{ inputs.hardware }}
+      BASE_EXTRA_ARGS: ${{ inputs.base_extra_args }}
+      DEVICE: ${{ inputs.device }}
+      VLLM_CPU_KVCACHE_SPACE: ${{ inputs.vllm_cpu_kvcache_space }}
+      CPU_VISIBLE_MEMORY_NODES: ${{ inputs.cpu_visible_memory_nodes }}
+      ROUTER_STARTUP_TIMEOUT_S: ${{ inputs.router_startup_timeout_s }}
+      BACKEND: ${{ inputs.backend }}
+      DATASET: ${{ inputs.dataset }}
+      TEST_MODE: ${{ inputs.test_mode }}
+      TUNING_SLAS: ${{ inputs.tuning_slas }}
+      DOCKER_NAME: ${{ inputs.docker_name }}
+      CONDA_NAME: ${{ inputs.conda_name }}
+      OPENAI_API_BASE: ${{ inputs.openai_api_base }}
+      TENSOR_PARALLEL: ${{ inputs.tensor_parallel }}
+      LENGTH_CONFIGS: ${{ inputs.length_configs }}
+      MAX_CONCURRENCY: ${{ inputs.max_concurrency }}
+      TP_BACKBONE: ${{ inputs.tp_backbone }}
+      MANIFEST_WORKBOOK_PATH: ${{ inputs.manifest_workbook_path }}
+      MANIFEST_SHEET_NAME: ${{ inputs.manifest_sheet_name }}
+      ROW_FILTER: ${{ inputs.row_filter }}
+      BUILD_NUMBER: ${{ inputs.build_number || github.run_number }}
+      BUILD_URL: ${{ inputs.build_url || format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
+      HF_TOKEN_FOR_SCRIPT: ${{ secrets.HF_TOKEN_FOR_SCRIPT }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Python dependency
+        shell: bash
+        run: python3 -m pip install --user --quiet openpyxl
+
+      - name: Run manifest tuning
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          is_true() {
+            case "${1:-}" in
+              true|True|TRUE|1|yes|YES) return 0 ;;
+              *) return 1 ;;
+            esac
+          }
+
+          split_csv() {
+            local value="${1:-}"
+            local fallback="${2:-}"
+            local source="${value:-}"
+            source="${source#\"}"
+            source="${source%\"}"
+            source="${source#\'}"
+            source="${source%\'}"
+            if [[ -z "${source//[$'\t\r\n ']/}" ]]; then
+              source="${fallback}"
+            fi
+            if [[ -z "${source//[$'\t\r\n ']/}" ]]; then
+              return 0
+            fi
+            IFS=',' read -r -a items <<< "${source}"
+            for item in "${items[@]}"; do
+              item="${item//[$'\t\r\n ']/}"
+              [[ -n "${item}" ]] && printf '%s\n' "${item}"
+            done
+          }
+
+          pick_hf_path() {
+            local row_185="$1"
+            local row_124="$2"
+            local row_legacy="$3"
+            local label="${NODE_LABEL_HINT:-${NODE_LABEL:-${RUNNER_NAME:-}}}"
+            if [[ "${label}" == *185* || "${label}" == *GNR630185* ]]; then
+              printf '%s' "${row_185:-${row_legacy}}"
+            elif [[ "${label}" == *124* || "${label}" == *r12s04* ]]; then
+              printf '%s' "${row_124:-${row_legacy}}"
+            else
+              printf '%s' "${row_185:-${row_124:-${row_legacy}}}"
+            fi
+          }
+
+          wait_for_server() {
+            local container_name="$1"
+            local dp_mode="$2"
+            local dp_size="$3"
+            local timeout_s="$4"
+            local start_ts
+            start_ts=$(date +%s)
+            local worker_base_port=8001
+            local worker_last_port=$((worker_base_port + dp_size - 1))
+            local setup_complete=0
+            local workers_ready=0
+            local setup_deadline=$((start_ts + timeout_s))
+            local readiness_deadline=0
+
+            while true; do
+              if ! docker ps --filter "name=${container_name}" --format '{{.Status}}' | grep -q "Up"; then
+                docker logs "${container_name}" | tail -n 200 || true
+                return 1
+              fi
+
+              recent_logs="$(docker logs --tail 1200 "${container_name}" 2>&1 || true)"
+              if echo "${recent_logs}" | grep -qE 'ValueError: too many values to unpack|MLA is not supported on CPU|WorkerProc failed to start|Engine core initialization failed|RuntimeError: Engine process failed to start|RPCServer process died before responding to readiness probe|UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY|UR_RESULT_ERROR_DEVICE_LOST|Fatal Python error: Segmentation fault|Traceback (most recent call last):'; then
+                docker logs "${container_name}" | tail -n 200 || true
+                return 1
+              fi
+
+              if [[ "${dp_mode}" == "router_dp" ]]; then
+                if [[ ${setup_complete} -ne 1 ]]; then
+                  if echo "${recent_logs}" | grep -q "ROUTER_DP_SETUP_COMPLETE"; then
+                    setup_complete=1
+                    readiness_deadline=$(( $(date +%s) + timeout_s + 60 ))
+                  else
+                    if [[ $(date +%s) -ge ${setup_deadline} ]]; then
+                      docker logs "${container_name}" | tail -n 200 || true
+                      return 1
+                    fi
+                    sleep 5
+                    continue
+                  fi
+                fi
+
+                if [[ ${workers_ready} -ne 1 ]]; then
+                  if echo "${recent_logs}" | grep -q "ROUTER_DP_WORKERS_READY"; then
+                    workers_ready=1
+                  else
+                    all_workers_ready=1
+                    for worker_port in $(seq ${worker_base_port} ${worker_last_port}); do
+                      if ! curl --noproxy '*' -sSf "http://127.0.0.1:${worker_port}/v1/models" >/dev/null; then
+                        all_workers_ready=0
+                        break
+                      fi
+                    done
+                    if [[ ${all_workers_ready} -eq 1 ]]; then
+                      workers_ready=1
+                    else
+                      if [[ $(date +%s) -ge ${readiness_deadline} ]]; then
+                        docker logs "${container_name}" | tail -n 200 || true
+                        return 1
+                      fi
+                      sleep 5
+                      continue
+                    fi
+                  fi
+                fi
+
+                if curl --noproxy '*' -sSf http://127.0.0.1:8000/v1/models >/dev/null; then
+                  return 0
+                fi
+                if [[ $(date +%s) -ge ${readiness_deadline} ]]; then
+                  docker logs "${container_name}" | tail -n 200 || true
+                  return 1
+                fi
+                sleep 5
+                continue
+              fi
+
+              if curl --noproxy '*' -sSf http://127.0.0.1:8000/v1/models >/dev/null; then
+                return 0
+              fi
+
+              if [[ $(date +%s) -ge ${setup_deadline} ]]; then
+                docker logs "${container_name}" | tail -n 200 || true
+                return 1
+              fi
+              sleep 5
+            done
+          }
+
+          docker_image="vllm/vllm-openai-cpu:${DOCKER_NAME}"
+          workbook_path="${MANIFEST_WORKBOOK_PATH:-${WORKSPACE}/automation/manifests/serving_tuning/automation_v0.xlsx}"
+          sheet_name="${MANIFEST_SHEET_NAME:-serving_tuning}"
+          rows_json="${WORKSPACE}/automation/generated/serving_tuning_rows.json"
+          state_file="${WORKSPACE}/automation/history/serving_tuning/latest/row_state.json"
+          legacy_state_file="${WORKSPACE}/automation/generated/writeback_state.json"
+
+          if ! [[ -f "${workbook_path}" ]]; then
+            echo "Manifest workbook not found: ${workbook_path}"
+            exit 1
+          fi
+
+          mkdir -p "${WORKSPACE}/logs/row_results" "${WORKSPACE}/automation/reports/serving_tuning" "${WORKSPACE}/automation/generated"
+          : > "${WORKSPACE}/logs/summary.log"
+
+          python3 "${WORKSPACE}/automation/read_excel_manifest.py" \
+            --xlsx "${workbook_path}" \
+            --sheet "${sheet_name}" \
+            --output "${rows_json}" \
+            $(if [[ -f "${state_file}" ]]; then printf '%s %q' --state-file "${state_file}"; elif [[ -f "${legacy_state_file}" ]]; then printf '%s %q' --state-file "${legacy_state_file}"; fi) \
+            $(if [[ -n "${ROW_FILTER}" ]]; then printf '%s %q' --row-filter "${ROW_FILTER}"; fi)
+
+          if is_true "${DRY_RUN}"; then
+            python3 -c 'import json,sys; from pathlib import Path; rows=json.loads(Path(sys.argv[1]).read_text()); [print("DRY_RUN row={row_id} model={model_id} tp={tp} pp={pp} dp={dp} dp_mode={dp_mode}".format(**row)) for row in rows]' "${rows_json}"
+            exit 0
+          fi
+
+          wait_for_container() {
+            local container_name="$1"
+            local row_id="$2"
+            local dp_mode="$3"
+            local dp_size="$4"
+            wait_for_server "${container_name}" "${dp_mode}" "${dp_size}" "${ROUTER_STARTUP_TIMEOUT_S}"
+          }
+
+          while IFS=$'\t' read -r row_id model_id hf185 hf124 hflegacy tp pp dp dp_mode row_extra last_batch_size history_source; do
+            [[ -z "${row_id:-}" ]] && continue
+            hf_path="$(pick_hf_path "${hf185}" "${hf124}" "${hflegacy}")"
+            if [[ -z "${hf_path}" ]]; then
+              echo "Manifest row ${row_id}: no HuggingFace path resolved."
+              exit 1
+            fi
+
+            effective_extra_args="${BASE_EXTRA_ARGS} ${row_extra}"
+            effective_extra_args="${effective_extra_args//  / }"
+            server_log="${WORKSPACE}/logs/server_${row_id}.log"
+            safe_row_id="${row_id//[^A-Za-z0-9._-]/_}"
+            container_result_path="/workspace1/logs/row_results/${safe_row_id}.json"
+            host_result_path="${WORKSPACE}/logs/row_results/${safe_row_id}.json"
+            client_log_path="${WORKSPACE}/logs/client_${safe_row_id}.log"
+
+            echo "ROW_START row_id=${row_id} model=${model_id} tp=${tp} pp=${pp} dp=${dp} dp_mode=${dp_mode}" | tee -a "${WORKSPACE}/logs/summary.log"
+            if [[ -n "${last_batch_size}" ]]; then
+              echo "ROW_WARM_START row_id=${row_id} batch=${last_batch_size} source=${history_source}" | tee -a "${WORKSPACE}/logs/summary.log"
+            fi
+
+            container_name="vllm-${DEFAULT_DTYPE}"
+            docker stop "${container_name}" >/dev/null 2>&1 || true
+            docker rm "${container_name}" >/dev/null 2>&1 || true
+
+            if [[ "${DEVICE}" == "cpu" ]]; then
+              server_script="vllm_server_launch_new.sh"
+              if [[ "${dp_mode}" == "router_dp" ]]; then
+                server_script="vllm_router_dp_launch.sh"
+              elif [[ "${dp_mode}" == "native_dp" && ! "${dp}" =~ ^[1-9][0-9]*$ ]]; then
+                echo "Invalid dp size for manifest row ${row_id}: ${dp}"
+                exit 1
+              fi
+            else
+              server_script="vllm_server_launch.sh"
+            fi
+
+            launch_args="${effective_extra_args}"
+            if [[ "${DEVICE}" == "cpu" && "${dp_mode}" == "native_dp" ]]; then
+              launch_args="${launch_args} -dp=${dp}"
+            fi
+
+            if [[ "${DEVICE}" != "cpu" ]]; then
+              echo "This workflow only supports device=cpu. Got DEVICE=${DEVICE}."
+              exit 1
+            fi
+
+            launch_cmd=$(printf 'bash %q %q %q %q %q %q %q %q %q' \
+              "/workspace/${server_script}" "${model_id}" "${DEFAULT_DTYPE}" "${DEVICE}" "${tp}" "${ENGINE_TYPE}" "${HARDWARE}" "${pp}" "${launch_args}")
+            if [[ "${dp_mode}" == "router_dp" ]]; then
+              launch_cmd=$(printf '%s %q' "${launch_cmd}" "${dp}")
+            fi
+            extra_envs=()
+            if [[ "${dp_mode}" == "none" ]]; then
+              extra_envs+=(-e VLLM_CPU_AUTO_BIND=1)
+            elif [[ -n "${CPU_VISIBLE_MEMORY_NODES}" ]]; then
+              extra_envs+=(-e CPU_VISIBLE_MEMORY_NODES="${CPU_VISIBLE_MEMORY_NODES}")
+            fi
+            if [[ -n "${VLLM_CPU_KVCACHE_SPACE}" ]]; then
+              extra_envs+=(-e VLLM_CPU_KVCACHE_SPACE="${VLLM_CPU_KVCACHE_SPACE}")
+            fi
+            docker run -t -d --shm-size 10g --net=host --ipc=host --privileged \
+              -e http_proxy="${NODE_PROXY}" \
+              -e https_proxy="${NODE_PROXY}" \
+              -e no_proxy=.intel.com,127.0.0.1,localhost \
+              "${extra_envs[@]}" \
+              -e ROUTER_STARTUP_TIMEOUT_S="${ROUTER_STARTUP_TIMEOUT_S}" \
+              -e STARTUP_DEBUG_TRACE=${STARTUP_DEBUG_TRACE:-0} \
+              -e HF_TOKEN_FOR_SCRIPT="${HF_TOKEN_FOR_SCRIPT}" \
+              -v "${hf_path}:/root/.cache/" \
+              -v "${WORKSPACE}:/workspace" \
+              --name="${container_name}" \
+              --entrypoint='' \
+              "${docker_image}" \
+              /bin/bash -c "${launch_cmd}"
+
+            wait_for_container "${container_name}" "${row_id}" "${dp_mode}" "${dp}"
+
+            mapfile -t length_list < <(split_csv "${LENGTH_CONFIGS}" "default")
+            if [[ ${#length_list[@]} -eq 0 ]]; then
+              length_list=(default)
+            fi
+
+            for length_config in "${length_list[@]}"; do
+              docker_env_args=(
+                -e modelid="${model_id}"
+                -e dtype="${DEFAULT_DTYPE}"
+                -e backend="${BACKEND}"
+                -e device="${DEVICE}"
+                -e dataset="${DATASET}"
+                -e test_mode="${TEST_MODE}"
+                -e tuning_slas="${TUNING_SLAS}"
+                -e docker_name="${DOCKER_NAME}"
+                -e conda_name="${CONDA_NAME}"
+                -e benchmark_script="${BENCHMARK_SCRIPT}"
+                -e request_rate="inf"
+                -e OPENAI_API_BASE="${OPENAI_API_BASE}"
+                -e pipeline_parallel="${pp}"
+                -e tp_socket="${tp}"
+                -e tensor_parallel="${TENSOR_PARALLEL}"
+                -e extra_args="${launch_args}"
+                -e length_config="${length_config}"
+                -e hardware="${HARDWARE}"
+                -e max_concurrency="${MAX_CONCURRENCY}"
+                -e dp_mode="${dp_mode}"
+                -e dp_size="${dp}"
+                -e enable_cpu_monitor="false"
+                -e CPU_MONITOR_INTERVAL_S="1"
+                -e BENCH_NUM_WARMUPS="${last_batch_size:-200}"
+                -e BENCH_TEMPERATURE=0
+                -e tp_backbone="${TP_BACKBONE}"
+                -e HF_TOKEN_FOR_SCRIPT="${HF_TOKEN_FOR_SCRIPT}"
+                -e NODE_PROXY="${NODE_PROXY}"
+                -e ROW_SERVER_LOG="${server_log}"
+                -e ROW_ID="${row_id}"
+                -e TUNING_RESULT_PATH="${container_result_path}"
+                -e CLIENT_LOG_PATH="/workspace1/logs/client_${safe_row_id}_Length-${length_config//\//-}.log"
+              )
+              if [[ -n "${last_batch_size}" ]]; then
+                docker_env_args+=(
+                  -e TUNING_PERSISTED_BATCH_SIZE="${last_batch_size}"
+                  -e TUNING_PERSISTED_BATCH_SOURCE="${history_source}"
+                )
+              fi
+
+              docker run --rm \
+                --shm-size 10g \
+                --net=host \
+                -v "${WORKSPACE}:/workspace1" \
+                -v "${hf_path}:/root/.cache/" \
+                -u root \
+                --privileged \
+                --entrypoint='' \
+                --env http_proxy="${NODE_PROXY}" \
+                --env https_proxy="${NODE_PROXY}" \
+                --env no_proxy=.intel.com \
+                -e HF_TOKEN_FOR_SCRIPT="${HF_TOKEN_FOR_SCRIPT}" \
+                --env work_space="${WORKSPACE}" \
+                "${docker_env_args[@]}" \
+                "${docker_image}" \
+                /bin/bash -lc "cd /workspace1 && bash /workspace1/tuning_best_vllm.sh"
+
+              if [[ -f "${host_result_path}" ]]; then
+                result_status=$(python3 -c 'import json,sys; from pathlib import Path; print(json.loads(Path(sys.argv[1]).read_text()).get("status", "MODEL_ERROR"))' "${host_result_path}")
+                echo "ROW_RESULT row_id=${row_id} status=${result_status} model=${model_id} tp=${tp} pp=${pp} dp=${dp} dp_mode=${dp_mode} dtype=${DEFAULT_DTYPE} length=${length_config}" | tee -a "${WORKSPACE}/logs/summary.log"
+              else
+                echo "ROW_RESULT row_id=${row_id} status=MODEL_ERROR model=${model_id} tp=${tp} pp=${pp} dp=${dp} dp_mode=${dp_mode} dtype=${DEFAULT_DTYPE} length=${length_config} error=missing_result_file" | tee -a "${WORKSPACE}/logs/summary.log"
+              fi
+            done
+
+            docker exec "${container_name}" pkill -2 -f 'vllm.entrypoints.openai.api_server' >/dev/null 2>&1 || true
+            docker stop "${container_name}" >/dev/null 2>&1 || true
+            docker rm "${container_name}" >/dev/null 2>&1 || true
+          done < <(python3 -c 'import csv, json, sys; from pathlib import Path; rows=json.loads(Path(sys.argv[1]).read_text()); writer=csv.writer(sys.stdout, delimiter="\t", lineterminator="\n"); [writer.writerow([row.get("row_id", ""), row.get("model_id", ""), row.get("hugginface_path_185", ""), row.get("hugginface_path_124", ""), row.get("hugginface_path", ""), row.get("tp", ""), row.get("pp", ""), row.get("dp", ""), row.get("dp_mode", ""), row.get("extra_args", ""), row.get("last_batch_size", ""), row.get("history_source", "")]) for row in rows]' "${rows_json}")
+
+          python3 "${WORKSPACE}/automation/compile_serving_tuning_results.py" \
+            --results-dir "${WORKSPACE}/logs/row_results" \
+            --csv-out "${WORKSPACE}/logs/serving_tuning_results.csv" \
+            --xlsx-out "${WORKSPACE}/logs/serving_tuning_results.xlsx" \
+            --runs-snapshot-dir "${WORKSPACE}/runs" \
+            --build-number "${BUILD_NUMBER}"
+
+          python3 "${WORKSPACE}/automation/writeback_results.py" \
+            --results-csv "${WORKSPACE}/logs/serving_tuning_results.csv" \
+            --xlsx "${MANIFEST_WORKBOOK_PATH:-${WORKSPACE}/automation/manifests/serving_tuning/automation_v0.xlsx}" \
+            --build-number "${BUILD_NUMBER}" \
+            --runs-dir "${WORKSPACE}/runs"
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ipex-cpu-vllm-manifest-tuning-logs
+          path: |
+            logs/**
+            automation/reports/serving_tuning/**
+          if-no-files-found: ignore
