@@ -116,7 +116,7 @@ jobs:
       BUILD_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
       HF_TOKEN_FOR_SCRIPT: ${{ secrets.HF_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Python dependency
         shell: bash
@@ -456,7 +456,7 @@ jobs:
 
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ipex-cpu-vllm-manifest-tuning-logs
           path: |
