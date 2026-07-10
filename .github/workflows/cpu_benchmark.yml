@@ -1,4 +1,4 @@
-name: ipex-cpu-vllm-manifest-tuning
+name: cpu-vllm-benchmark
 
 on:
   workflow_dispatch:
@@ -9,28 +9,16 @@ on:
         type: string
       node_label:
         required: false
-        default: ""
-        type: string
-      node_label_hint:
-        required: false
-        default: ""
+        default: "m6980m02"
         type: string
       node_proxy:
         required: false
         default: http://proxy-iil.intel.com:911
         type: string
-      dtypes:
-        required: false
-        default: bfloat16
-        type: string
       default_dtype:
         required: false
         default: bfloat16
         type: string
-      dry_run:
-        required: false
-        default: false
-        type: boolean
       benchmark_script:
         required: false
         default: serving_tuning
@@ -39,22 +27,16 @@ on:
           - serving_tuning
       engine_type:
         required: false
-        default: v0
+        default: v1
         type: string
       hardware:
         required: false
-        default: emr
+        default: gnr
         type: string
       base_extra_args:
         required: false
         default: ""
         type: string
-      device:
-        required: false
-        default: cpu
-        type: choice
-        options:
-          - cpu
       vllm_cpu_kvcache_space:
         required: false
         default: ""
@@ -67,14 +49,6 @@ on:
         required: false
         default: 1200
         type: string
-      backend:
-        required: false
-        default: vllm
-        type: string
-      dataset:
-        required: false
-        default: ShareGPT_V3_unfiltered_cleaned_split.json
-        type: string
       test_mode:
         required: false
         default: performance
@@ -84,21 +58,13 @@ on:
         default: 100,5000
         type: string
       docker_name:
-        required: false
-        default: vllm-cpu-0.16.0
-        type: string
-      conda_name:
-        required: false
-        default: tgi
+        required: true
+        default: v0.24.0
         type: string
       openai_api_base:
         required: false
         default: http://0.0.0.0:8000/v1
         type: string
-      tensor_parallel:
-        required: false
-        default: false
-        type: boolean
       length_configs:
         required: false
         default: default
@@ -111,26 +77,11 @@ on:
         required: false
         default: mp
         type: string
-      manifest_workbook_path:
-        required: false
-        default: ""
-        type: string
-      manifest_sheet_name:
-        required: false
-        default: serving_tuning
-        type: string
       row_filter:
         required: false
         default: ""
         type: string
-      build_number:
-        required: false
-        default: ""
-        type: string
-      build_url:
-        required: false
-        default: ""
-        type: string
+
 
 permissions:
   contents: read
@@ -141,36 +92,29 @@ jobs:
     env:
       WORKSPACE: ${{ github.workspace }}
       NODE_PROXY: ${{ inputs.node_proxy }}
-      NODE_LABEL: ${{ inputs.node_label }}
-      NODE_LABEL_HINT: ${{ inputs.node_label_hint }}
-      DTYPES: ${{ inputs.dtypes }}
+      NODE_LABEL: "${{ inputs.node_label }}"
       DEFAULT_DTYPE: ${{ inputs.default_dtype }}
-      DRY_RUN: ${{ inputs.dry_run }}
       BENCHMARK_SCRIPT: ${{ inputs.benchmark_script }}
       ENGINE_TYPE: ${{ inputs.engine_type }}
       HARDWARE: ${{ inputs.hardware }}
       BASE_EXTRA_ARGS: ${{ inputs.base_extra_args }}
-      DEVICE: ${{ inputs.device }}
+      DEVICE: ${{ 'device' }}
       VLLM_CPU_KVCACHE_SPACE: ${{ inputs.vllm_cpu_kvcache_space }}
       CPU_VISIBLE_MEMORY_NODES: ${{ inputs.cpu_visible_memory_nodes }}
       ROUTER_STARTUP_TIMEOUT_S: ${{ inputs.router_startup_timeout_s }}
-      BACKEND: ${{ inputs.backend }}
-      DATASET: ${{ inputs.dataset }}
+      BACKEND: ${{ 'vllm' }}
+      DATASET: ${{ 'dummy' }}
       TEST_MODE: ${{ inputs.test_mode }}
       TUNING_SLAS: ${{ inputs.tuning_slas }}
       DOCKER_NAME: ${{ inputs.docker_name }}
-      CONDA_NAME: ${{ inputs.conda_name }}
       OPENAI_API_BASE: ${{ inputs.openai_api_base }}
-      TENSOR_PARALLEL: ${{ inputs.tensor_parallel }}
       LENGTH_CONFIGS: ${{ inputs.length_configs }}
       MAX_CONCURRENCY: ${{ inputs.max_concurrency }}
       TP_BACKBONE: ${{ inputs.tp_backbone }}
-      MANIFEST_WORKBOOK_PATH: ${{ inputs.manifest_workbook_path }}
-      MANIFEST_SHEET_NAME: ${{ inputs.manifest_sheet_name }}
       ROW_FILTER: ${{ inputs.row_filter }}
-      BUILD_NUMBER: ${{ inputs.build_number || github.run_number }}
-      BUILD_URL: ${{ inputs.build_url || format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
-      HF_TOKEN_FOR_SCRIPT: ${{ secrets.HF_TOKEN_FOR_SCRIPT }}
+      BUILD_NUMBER: ${{ github.run_number }}
+      BUILD_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
+      HF_TOKEN_FOR_SCRIPT: ${{ secrets.HF_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -212,16 +156,16 @@ jobs:
           }
 
           pick_hf_path() {
-            local row_185="$1"
+            local row_m02="$1"
             local row_124="$2"
             local row_legacy="$3"
-            local label="${NODE_LABEL_HINT:-${NODE_LABEL:-${RUNNER_NAME:-}}}"
-            if [[ "${label}" == *185* || "${label}" == *GNR630185* ]]; then
-              printf '%s' "${row_185:-${row_legacy}}"
+            local label="${NODE_LABEL:-${RUNNER_NAME:-}}"
+            if [[ "${label}" == *m02* || "${label}" == *m6980m02* ]]; then
+              printf '%s' "${row_m02:-${row_legacy}}"
             elif [[ "${label}" == *124* || "${label}" == *r12s04* ]]; then
               printf '%s' "${row_124:-${row_legacy}}"
             else
-              printf '%s' "${row_185:-${row_124:-${row_legacy}}}"
+              printf '%s' "${row_m02:-${row_124:-${row_legacy}}}"
             fi
           }
 
@@ -314,8 +258,8 @@ jobs:
           }
 
           docker_image="vllm/vllm-openai-cpu:${DOCKER_NAME}"
-          workbook_path="${MANIFEST_WORKBOOK_PATH:-${WORKSPACE}/automation/manifests/serving_tuning/automation_v0.xlsx}"
-          sheet_name="${MANIFEST_SHEET_NAME:-serving_tuning}"
+          workbook_path="${WORKSPACE}/automation/manifests/serving_tuning/automation_v0.xlsx"
+          sheet_name="serving_tuning"
           rows_json="${WORKSPACE}/automation/generated/serving_tuning_rows.json"
           state_file="${WORKSPACE}/automation/history/serving_tuning/latest/row_state.json"
           legacy_state_file="${WORKSPACE}/automation/generated/writeback_state.json"
@@ -335,10 +279,6 @@ jobs:
             $(if [[ -f "${state_file}" ]]; then printf '%s %q' --state-file "${state_file}"; elif [[ -f "${legacy_state_file}" ]]; then printf '%s %q' --state-file "${legacy_state_file}"; fi) \
             $(if [[ -n "${ROW_FILTER}" ]]; then printf '%s %q' --row-filter "${ROW_FILTER}"; fi)
 
-          if is_true "${DRY_RUN}"; then
-            python3 -c 'import json,sys; from pathlib import Path; rows=json.loads(Path(sys.argv[1]).read_text()); [print("DRY_RUN row={row_id} model={model_id} tp={tp} pp={pp} dp={dp} dp_mode={dp_mode}".format(**row)) for row in rows]' "${rows_json}"
-            exit 0
-          fi
 
           wait_for_container() {
             local container_name="$1"
@@ -348,9 +288,9 @@ jobs:
             wait_for_server "${container_name}" "${dp_mode}" "${dp_size}" "${ROUTER_STARTUP_TIMEOUT_S}"
           }
 
-          while IFS=$'\t' read -r row_id model_id hf185 hf124 hflegacy tp pp dp dp_mode row_extra last_batch_size history_source; do
+          while IFS=$'\t' read -r row_id model_id hfm02 hf124 hflegacy tp pp dp dp_mode row_extra last_batch_size history_source; do
             [[ -z "${row_id:-}" ]] && continue
-            hf_path="$(pick_hf_path "${hf185}" "${hf124}" "${hflegacy}")"
+            hf_path="$(pick_hf_path "${hfm02}" "${hf124}" "${hflegacy}")"
             if [[ -z "${hf_path}" ]]; then
               echo "Manifest row ${row_id}: no HuggingFace path resolved."
               exit 1
@@ -441,13 +381,11 @@ jobs:
                 -e test_mode="${TEST_MODE}"
                 -e tuning_slas="${TUNING_SLAS}"
                 -e docker_name="${DOCKER_NAME}"
-                -e conda_name="${CONDA_NAME}"
                 -e benchmark_script="${BENCHMARK_SCRIPT}"
                 -e request_rate="inf"
                 -e OPENAI_API_BASE="${OPENAI_API_BASE}"
                 -e pipeline_parallel="${pp}"
                 -e tp_socket="${tp}"
-                -e tensor_parallel="${TENSOR_PARALLEL}"
                 -e extra_args="${launch_args}"
                 -e length_config="${length_config}"
                 -e hardware="${HARDWARE}"
@@ -512,7 +450,7 @@ jobs:
 
           python3 "${WORKSPACE}/automation/writeback_results.py" \
             --results-csv "${WORKSPACE}/logs/serving_tuning_results.csv" \
-            --xlsx "${MANIFEST_WORKBOOK_PATH:-${WORKSPACE}/automation/manifests/serving_tuning/automation_v0.xlsx}" \
+            --xlsx "${WORKSPACE}/automation/manifests/serving_tuning/automation_v0.xlsx" \
             --build-number "${BUILD_NUMBER}" \
             --runs-dir "${WORKSPACE}/runs"
 
