@@ -5,7 +5,7 @@ on:
     inputs:
       runner_labels:
         required: true
-        default: '["self-hosted","linux","x64"]'
+        default: '["cpu_benchmark"]'
         type: string
       node_label:
         required: false
@@ -35,7 +35,7 @@ on:
         type: string
       base_extra_args:
         required: false
-        default: ""
+        default: "\"--trust-remote-code --no-enable-prefix-caching --max-num-batched-tokens=16384 --max-num-seqs=256 --gpu-memory-utilization=0.8\""
         type: string
       vllm_cpu_kvcache_space:
         required: false
@@ -79,7 +79,7 @@ on:
         type: string
       row_filter:
         required: false
-        default: ""
+        default: "meta-llama/Llama-3.2-1B"
         type: string
 
 
@@ -98,7 +98,7 @@ jobs:
       ENGINE_TYPE: ${{ inputs.engine_type }}
       HARDWARE: ${{ inputs.hardware }}
       BASE_EXTRA_ARGS: ${{ inputs.base_extra_args }}
-      DEVICE: ${{ 'device' }}
+      DEVICE: ${{ 'cpu' }}
       VLLM_CPU_KVCACHE_SPACE: ${{ inputs.vllm_cpu_kvcache_space }}
       CPU_VISIBLE_MEMORY_NODES: ${{ inputs.cpu_visible_memory_nodes }}
       ROUTER_STARTUP_TIMEOUT_S: ${{ inputs.router_startup_timeout_s }}
