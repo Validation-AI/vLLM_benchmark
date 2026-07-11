@@ -11,7 +11,11 @@ hf auth login --token "$HF_TOKEN_FOR_SCRIPT"
 pip install --find-links /root/.cache/pip/wheels pandas
 pip install --find-links /root/.cache/pip/wheels datasets
 
-cd /workspace1/vllm/benchmarks
+# The tuning client drives the server through the `vllm bench serve` CLI, so it
+# does not require a local vLLM source checkout. Older setups cloned vLLM into
+# the workspace (./vllm/benchmarks); use it if present, otherwise stay in the
+# repo root so the run does not abort under `set -e`.
+cd /workspace1/vllm/benchmarks 2>/dev/null || cd /workspace1
 
 export log_dir=/workspace1/logs
 mkdir -p "${log_dir}"

@@ -31,7 +31,7 @@ on:
         type: string
       base_extra_args:
         required: false
-        default: "\"--trust-remote-code --no-enable-prefix-caching --max-num-batched-tokens=16384 --max-num-seqs=256 --gpu-memory-utilization=0.8\""
+        default: "--trust-remote-code --no-enable-prefix-caching --max-num-batched-tokens=16384 --max-num-seqs=256 --gpu-memory-utilization=0.8"
         type: string
       vllm_cpu_kvcache_space:
         required: false
@@ -112,6 +112,25 @@ jobs:
       HF_TOKEN_FOR_SCRIPT: ${{ secrets.HF_TOKEN }}
     steps:
       - uses: actions/checkout@v5
+
+      - name: Clean up stale vLLM containers
+        shell: bash
+        run: |
+          set -uo pipefail
+          # Remove any vLLM benchmark containers left over from previous builds
+          # (e.g. a run that failed before its cleanup step). A running container
+          # cannot be removed directly, so stop each one first, then remove it.
+          stale=$(docker ps -aq --filter "name=^/vllm-" || true)
+          if [[ -n "${stale}" ]]; then
+            echo "Cleaning up stale containers:"
+            docker ps -a --filter "name=^/vllm-" --format '  {{.Names}} ({{.Status}})' || true
+            for cid in ${stale}; do
+              docker stop "${cid}" >/dev/null 2>&1 || true
+              docker rm -f "${cid}" >/dev/null 2>&1 || true
+            done
+          else
+            echo "No stale vLLM containers found."
+          fi
 
       - name: Install Python dependency
         shell: bash
@@ -453,3 +472,24 @@ jobs:
             logs/**
             automation/reports/serving_tuning/**
           if-no-files-found: ignore
+
+      - name: Clean up vLLM containers
+        if: always()
+        shell: bash
+        run: |
+          set -uo pipefail
+          # Ensure this build never leaves benchmark containers behind, even if
+          # a step above failed before its inline cleanup ran. A running
+          # container must be stopped before it can be removed.
+          stale=$(docker ps -aq --filter "name=^/vllm-" || true)
+          if [[ -n "${stale}" ]]; then
+            echo "Cleaning up vLLM containers:"
+            docker ps -a --filter "name=^/vllm-" --format '  {{.Names}} ({{.Status}})' || true
+            for cid in ${stale}; do
+              docker stop "${cid}" >/dev/null 2>&1 || true
+              docker rm -f "${cid}" >/dev/null 2>&1 || true
+            done
+          else
+            echo "No vLLM containers to remove."
+          fi
+
