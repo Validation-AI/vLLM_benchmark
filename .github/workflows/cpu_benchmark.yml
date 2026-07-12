@@ -63,7 +63,7 @@ on:
         type: string
       length_configs:
         required: false
-        default: default
+        default: "1024/1024"
         type: string
       max_concurrency:
         required: false
