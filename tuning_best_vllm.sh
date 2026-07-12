@@ -942,7 +942,7 @@ else
     write_tuning_result_file "PASS" "${optimal_batch_size}" "${max_throughput}" "${max_TPOT}" "${max_TTFT}" ""
     if [[ "$tpot_sla" -gt "0" ]]; then
         INPUT_FILE="${tuning_data_file}"
-        bash "${WORKSPACE}/vllm_update_tuning_json.sh" \
+        bash "/workspace1/vllm_update_tuning_json.sh" \
             "${max_TPOT}" "${max_TTFT}" "${max_throughput}" "${optimal_batch_size}" \
             "${hardware}" "${backend}" "${modelid}" "${dtype}" "${storage_key}" "${length_config}" "${INPUT_FILE}" \
             "${tpot_sla}" "${ttft_sla}" "${pipeline_parallel}" "${dp_mode}" "${dp_size}" \
