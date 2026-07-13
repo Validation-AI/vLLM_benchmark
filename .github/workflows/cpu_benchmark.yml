@@ -435,7 +435,7 @@ jobs:
                 --env work_space="${WORKSPACE}" \
                 "${docker_env_args[@]}" \
                 "${docker_image}" \
-                /bin/bash -lc "cd /workspace1 && bash /workspace1/tuning_best_vllm.sh"
+                /bin/bash -lc "cd /workspace1 && bash /workspace1/perf_fixed_batch_vllm.sh"
 
               if [[ -f "${host_result_path}" ]]; then
                 result_status=$(python3 -c 'import json,sys; from pathlib import Path; print(json.loads(Path(sys.argv[1]).read_text()).get("status", "MODEL_ERROR"))' "${host_result_path}")
