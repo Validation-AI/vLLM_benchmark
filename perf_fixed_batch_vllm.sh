@@ -302,11 +302,13 @@ if (( persisted_batch_size <= 0 )); then
     write_tuning_result_file "${perf_status}" "" "" "" "" "${perf_error_msg}"
     exit 0
 fi
-if (( persisted_batch_size > max_batch_size )); then
-    echo "Requested batch_size=${persisted_batch_size} exceeds max_batch_size=${max_batch_size}; clamping."
-    persisted_batch_size=$max_batch_size
-fi
-batch_size=$persisted_batch_size
+batch_size=$((persisted_batch_size * 5))
+#if (( persisted_batch_size * 5 > max_batch_size )); then
+#    echo "Requested batch_size=$((persisted_batch_size * 5)) exceeds max_batch_size=${max_batch_size}; clamping."
+#    batch_size=$((max_batch_size))
+#else
+#    batch_size=$((persisted_batch_size * 5))
+#fi
 
 if [[ "$tp_socket" =~ ^[0-9]+$ ]]; then
     storage_key=$((pipeline_parallel * tp_socket))
@@ -314,7 +316,7 @@ fi
 
 input_len=$(echo "$length_config" | awk -F'/' '{print $1}')
 output_len=$(echo "$length_config" | awk -F'/' '{print $2}')
-run_max_concurrency=$batch_size
+run_max_concurrency=$persisted_batch_size
 
 log_path="${log_dir}/${model_log}_${batch_size}_${input_len}_${output_len}_perf.log"
 
