@@ -75,7 +75,7 @@ on:
         type: string
       row_filter:
         required: false
-        default: "meta-llama/Llama-3.2-1B"
+        default: ""
         type: string
 
 
