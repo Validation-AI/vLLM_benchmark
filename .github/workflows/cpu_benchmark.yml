@@ -43,7 +43,7 @@ on:
         type: string
       router_startup_timeout_s:
         required: false
-        default: 1200
+        default: 3600
         type: string
       test_mode:
         required: false
@@ -302,6 +302,14 @@ jobs:
             wait_for_server "${container_name}" "${dp_mode}" "${dp_size}" "${ROUTER_STARTUP_TIMEOUT_S}"
           }
 
+          # Record a failed row so one unhealthy/slow server does not abort the
+          # whole matrix. Writes the same result-JSON schema the client emits so
+          # the compile/writeback steps still see the row.
+          write_row_error_result() {
+            local out_path="$1" row_id="$2" model_id="$3" tp="$4" pp="$5" dp="$6" dp_mode="$7" dtype="$8" hardware="$9" length_config="${10}" status="${11}" error="${12}"
+            python3 -c 'import json,sys; from pathlib import Path; (out_path,row_id,model_id,tp,pp,dp,dp_mode,dtype,hardware,length_config,status,error)=sys.argv[1:]; payload={"row_id":row_id,"model_id":model_id,"tp":int(tp) if str(tp).isdigit() else tp,"pp":int(pp) if str(pp).isdigit() else pp,"dp":int(dp) if str(dp).isdigit() else dp,"dp_mode":dp_mode,"dtype":dtype,"hardware":hardware,"length_config":length_config,"status":status,"best_batch_size":"","throughput":"","ttft_ms":"","tpot_ms":"","error":error}; p=Path(out_path); p.parent.mkdir(parents=True, exist_ok=True); p.write_text(json.dumps(payload, indent=2))' "$out_path" "$row_id" "$model_id" "$tp" "$pp" "$dp" "$dp_mode" "$dtype" "$hardware" "$length_config" "$status" "$error"
+          }
+
           while IFS=$'\x1f' read -r row_id model_id hfm02 hf124 hflegacy tp pp dp dp_mode row_extra last_batch_size history_source; do
             [[ -z "${row_id:-}" ]] && continue
             hf_path="$(pick_hf_path "${hfm02}" "${hf124}" "${hflegacy}")"
@@ -376,11 +384,23 @@ jobs:
               "${docker_image}" \
               /bin/bash -c "${launch_cmd}"
 
-            wait_for_container "${container_name}" "${row_id}" "${dp_mode}" "${dp}"
-
             mapfile -t length_list < <(split_csv "${LENGTH_CONFIGS}" "default")
             if [[ ${#length_list[@]} -eq 0 ]]; then
               length_list=(default)
+            fi
+
+            # If the server never becomes ready, record the row as INFRA_ERROR
+            # and move on instead of failing the entire job.
+            if ! wait_for_container "${container_name}" "${row_id}" "${dp_mode}" "${dp}"; then
+              fail_len="${length_list[0]:-default}"
+              echo "ROW_STARTUP_FAILED row_id=${row_id} model=${model_id} tp=${tp} pp=${pp} dp=${dp} dp_mode=${dp_mode} timeout_s=${ROUTER_STARTUP_TIMEOUT_S}" | tee -a "${WORKSPACE}/logs/summary.log"
+              docker logs "${container_name}" >> "${server_log}" 2>&1 || true
+              write_row_error_result "${host_result_path}" "${row_id}" "${model_id}" "${tp}" "${pp}" "${dp}" "${dp_mode}" "${DEFAULT_DTYPE}" "${HARDWARE}" "${fail_len}" "INFRA_ERROR" "server_startup_timeout"
+              echo "ROW_RESULT row_id=${row_id} status=INFRA_ERROR model=${model_id} tp=${tp} pp=${pp} dp=${dp} dp_mode=${dp_mode} dtype=${DEFAULT_DTYPE} length=${fail_len} error=server_startup_timeout" | tee -a "${WORKSPACE}/logs/summary.log"
+              docker exec "${container_name}" pkill -2 -f 'vllm.entrypoints.openai.api_server' >/dev/null 2>&1 || true
+              docker stop "${container_name}" >/dev/null 2>&1 || true
+              docker rm "${container_name}" >/dev/null 2>&1 || true
+              continue
             fi
 
             for length_config in "${length_list[@]}"; do
