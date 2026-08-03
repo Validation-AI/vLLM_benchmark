@@ -77,6 +77,11 @@ on:
         required: false
         default: ""
         type: string
+      session_id:
+        description: "Reuse a prior run's SESSION_ID to resume and skip already-completed rows. Leave empty to start a fresh session."
+        required: false
+        default: ""
+        type: string
 
 
 permissions:
@@ -85,6 +90,10 @@ permissions:
 jobs:
   manifest:
     runs-on: ${{ fromJSON(inputs.runner_labels || '["self-hosted","linux","x64"]') }}
+    # GitHub's default job timeout is 360 min (6h). This self-hosted job can run
+    # the full model matrix well past that, so raise the cap. Increase further
+    # if a run still gets terminated for exceeding the limit.
+    timeout-minutes: 4320
     env:
       WORKSPACE: ${{ github.workspace }}
       NODE_LABEL: "${{ inputs.node_label }}"
@@ -107,6 +116,7 @@ jobs:
       MAX_CONCURRENCY: ${{ inputs.max_concurrency }}
       TP_BACKBONE: ${{ inputs.tp_backbone }}
       ROW_FILTER: ${{ inputs.row_filter }}
+      SESSION_ID: ${{ inputs.session_id }}
       BUILD_NUMBER: ${{ github.run_number }}
       BUILD_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
       HF_TOKEN_FOR_SCRIPT: ${{ secrets.HF_TOKEN }}
@@ -286,6 +296,24 @@ jobs:
           mkdir -p "${WORKSPACE}/logs/row_results" "${WORKSPACE}/automation/reports/serving_tuning" "${WORKSPACE}/automation/generated"
           : > "${WORKSPACE}/logs/summary.log"
 
+          # Durable per-row state for resumable runs. It lives OUTSIDE the
+          # checkout (which actions/checkout cleans) so it survives job
+          # cancellation and a fresh checkout in a follow-up run. Each completed
+          # row is copied here immediately; a later run that reuses the printed
+          # SESSION_ID restores these results and skips those rows.
+          session_id="${SESSION_ID:-}"
+          if [[ -z "${session_id//[$'\t\r\n ']/}" ]]; then
+            session_id="run-${GITHUB_RUN_ID:-$$}"
+          fi
+          persist_root="${RUNNER_WORKSPACE:-${WORKSPACE}/..}/vllm_bench_sessions/${session_id}"
+          persist_results="${persist_root}/row_results"
+          mkdir -p "${persist_results}"
+          echo "SESSION_ID=${session_id}" | tee -a "${WORKSPACE}/logs/summary.log"
+          echo "To resume after a cancel/abort, re-run this workflow with session_id=${session_id} (completed rows will be skipped)."
+          # Restore previously completed rows so the final compile/writeback
+          # covers the whole matrix, not only the rows this run executed.
+          cp -f "${persist_results}"/*.json "${WORKSPACE}/logs/row_results/" 2>/dev/null || true
+
           python3 "${WORKSPACE}/automation/read_excel_manifest.py" \
             --xlsx "${workbook_path}" \
             --sheet "${sheet_name}" \
@@ -325,6 +353,14 @@ jobs:
             container_result_path="/workspace1/logs/row_results/${safe_row_id}.json"
             host_result_path="${WORKSPACE}/logs/row_results/${safe_row_id}.json"
             client_log_path="${WORKSPACE}/logs/client_${safe_row_id}.log"
+
+            # Resume support: skip rows already completed in this session.
+            if [[ -f "${persist_results}/${safe_row_id}.json" ]]; then
+              cp -f "${persist_results}/${safe_row_id}.json" "${host_result_path}" 2>/dev/null || true
+              prev_status=$(python3 -c 'import json,sys; from pathlib import Path; print(json.loads(Path(sys.argv[1]).read_text()).get("status",""))' "${host_result_path}" 2>/dev/null || echo "")
+              echo "ROW_SKIP row_id=${row_id} status=${prev_status} (already completed in session ${session_id})" | tee -a "${WORKSPACE}/logs/summary.log"
+              continue
+            fi
 
             echo "ROW_START row_id=${row_id} model=${model_id} tp=${tp} pp=${pp} dp=${dp} dp_mode=${dp_mode}" | tee -a "${WORKSPACE}/logs/summary.log"
             if [[ -n "${last_batch_size}" ]]; then
@@ -397,6 +433,7 @@ jobs:
               docker logs "${container_name}" >> "${server_log}" 2>&1 || true
               write_row_error_result "${host_result_path}" "${row_id}" "${model_id}" "${tp}" "${pp}" "${dp}" "${dp_mode}" "${DEFAULT_DTYPE}" "${HARDWARE}" "${fail_len}" "INFRA_ERROR" "server_startup_timeout"
               echo "ROW_RESULT row_id=${row_id} status=INFRA_ERROR model=${model_id} tp=${tp} pp=${pp} dp=${dp} dp_mode=${dp_mode} dtype=${DEFAULT_DTYPE} length=${fail_len} error=server_startup_timeout" | tee -a "${WORKSPACE}/logs/summary.log"
+              cp -f "${host_result_path}" "${persist_results}/${safe_row_id}.json" 2>/dev/null || true
               docker exec "${container_name}" pkill -2 -f 'vllm.entrypoints.openai.api_server' >/dev/null 2>&1 || true
               docker stop "${container_name}" >/dev/null 2>&1 || true
               docker rm "${container_name}" >/dev/null 2>&1 || true
@@ -464,6 +501,9 @@ jobs:
                 echo "ROW_RESULT row_id=${row_id} status=MODEL_ERROR model=${model_id} tp=${tp} pp=${pp} dp=${dp} dp_mode=${dp_mode} dtype=${DEFAULT_DTYPE} length=${length_config} error=missing_result_file" | tee -a "${WORKSPACE}/logs/summary.log"
               fi
             done
+
+            # Persist this row's result so a resumed run skips it.
+            cp -f "${host_result_path}" "${persist_results}/${safe_row_id}.json" 2>/dev/null || true
 
             docker exec "${container_name}" pkill -2 -f 'vllm.entrypoints.openai.api_server' >/dev/null 2>&1 || true
             docker stop "${container_name}" >/dev/null 2>&1 || true
