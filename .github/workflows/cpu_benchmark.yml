@@ -78,7 +78,7 @@ on:
         default: ""
         type: string
       session_id:
-        description: "Reuse a prior run's SESSION_ID to resume and skip already-completed rows. Leave empty to start a fresh session."
+        description: "To continue a previous run, enter that run's number (the #NN shown in the Actions run list). Leave empty to start a new session keyed by this run's number."
         required: false
         default: ""
         type: string
@@ -303,13 +303,13 @@ jobs:
           # SESSION_ID restores these results and skips those rows.
           session_id="${SESSION_ID:-}"
           if [[ -z "${session_id//[$'\t\r\n ']/}" ]]; then
-            session_id="run-${GITHUB_RUN_ID:-$$}"
+            session_id="${GITHUB_RUN_NUMBER:-${BUILD_NUMBER:-$$}}"
           fi
           persist_root="${RUNNER_WORKSPACE:-${WORKSPACE}/..}/vllm_bench_sessions/${session_id}"
           persist_results="${persist_root}/row_results"
           mkdir -p "${persist_results}"
           echo "SESSION_ID=${session_id}" | tee -a "${WORKSPACE}/logs/summary.log"
-          echo "To resume after a cancel/abort, re-run this workflow with session_id=${session_id} (completed rows will be skipped)."
+          echo "To continue this run later, re-run the workflow with session_id=${session_id} (completed rows will be skipped)."
           # Restore previously completed rows so the final compile/writeback
           # covers the whole matrix, not only the rows this run executed.
           cp -f "${persist_results}"/*.json "${WORKSPACE}/logs/row_results/" 2>/dev/null || true
