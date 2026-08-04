@@ -31,7 +31,7 @@ on:
         type: string
       base_extra_args:
         required: false
-        default: "--trust-remote-code --no-enable-prefix-caching --max-num-batched-tokens=16384 --max-num-seqs=256 --gpu-memory-utilization=0.8"
+        default: "--trust-remote-code --no-enable-prefix-caching --max-num-batched-tokens=16384 --gpu-memory-utilization=0.8"
         type: string
       vllm_cpu_kvcache_space:
         required: false
@@ -346,7 +346,7 @@ jobs:
               exit 1
             fi
 
-            effective_extra_args="${BASE_EXTRA_ARGS} ${row_extra}"
+            effective_extra_args="${BASE_EXTRA_ARGS} ${row_extra} --max-num-seqs=${last_batch_size:-256}"
             effective_extra_args="${effective_extra_args//  / }"
             server_log="${WORKSPACE}/logs/server_${row_id}.log"
             safe_row_id="${row_id//[^A-Za-z0-9._-]/_}"
