@@ -102,7 +102,7 @@ def resolve_row(raw):
         "dp_mode": dp_mode,
         "extra_args": normalize_str(raw.get("extra_args")),
         "last_run_at": normalize_str(raw.get("last_run_at")),
-        "last_status": normalize_str(raw.get("last_status")),
+        "last_status": normalize_bool(raw.get("last_status", False)),
         "last_build_number": normalize_str(raw.get("last_build_number")),
         "last_batch_size": normalize_str(raw.get("last_batch_size")),
         "last_throughput": normalize_str(raw.get("last_throughput")),
