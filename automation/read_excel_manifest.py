@@ -178,7 +178,7 @@ def main():
             continue
         rows.append(row)
         # count += 1
-    print(f"Processed {count} rows from {xlsx_path} (sheet: {args.sheet})")
+    # print(f"Processed {count} rows from {xlsx_path} (sheet: {args.sheet})")
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8") as f:
