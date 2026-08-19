@@ -167,11 +167,11 @@ def main():
     for values in ws.iter_rows(min_row=2, values_only=True):
         if not any(value is not None and value != "" for value in values):
             continue
-        if row["model_id"] == "google/diffusiongemma-26B-A4B-it":
-            print(f"debug row with model_id {row['model_id']} to see the {row['last_status']} and the type is {type(row['last_status'])}.")
         raw = row_to_dict(headers, values)
         row = resolve_row(raw)
         row = merge_row_history(row, state_history)
+        if row["model_id"] == "google/diffusiongemma-26B-A4B-it":
+            print(f"debug row with model_id {row['model_id']} to see the {row['last_status']} and the type is {type(row['last_status'])}.")
         if allowed_models and row["model_id"] not in allowed_models:
             continue
         if not args.include_disabled and (not row["enabled"] or not row["last_status"]):
