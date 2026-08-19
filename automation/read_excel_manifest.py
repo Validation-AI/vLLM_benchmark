@@ -13,7 +13,7 @@ def normalize_bool(value):
     if isinstance(value, bool):
         return value
     text = str(value).strip().lower()
-    return text in {"1", "true", "yes", "y"}
+    return text in {"1", "true", "yes", "y", "pass"}
 
 
 def normalize_int(value, default):
