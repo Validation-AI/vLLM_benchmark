@@ -169,6 +169,7 @@ def main():
             continue
         raw = row_to_dict(headers, values)
         row = resolve_row(raw)
+        print(f"Processing row: {row}")
         row = merge_row_history(row, state_history)
         print(row)
         if row["model_id"] == "google/diffusiongemma-26B-A4B-it":
@@ -178,7 +179,7 @@ def main():
         if not args.include_disabled and (not row["enabled"] or row["last_status"] in (None, "FAIL", False)):
             print(f"Skipping disabled row: {row['model_id']} (enabled={row['enabled']}, last_status={row['last_status']})")
             continue
-        rows.append(row)
+        # rows.append(row)
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
