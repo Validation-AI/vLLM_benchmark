@@ -163,24 +163,22 @@ def main():
     state_history = load_state_history(args.state_file.strip())
     allowed_models = {item.strip() for item in args.row_filter.split(",") if item.strip()}
     rows = []
-
+    count = 0
     for values in ws.iter_rows(min_row=2, values_only=True):
         if not any(value is not None and value != "" for value in values):
             continue
         raw = row_to_dict(headers, values)
         row = resolve_row(raw)
-        print(f"Processing row: {row}")
-        row = merge_row_history(row, state_history)
+        #row = merge_row_history(row, state_history)
         print(row)
-        if row["model_id"] == "google/diffusiongemma-26B-A4B-it":
-            print(f"debug row with model_id {row['model_id']} to see the {row['last_status']} and the type is {type(row['last_status'])}.")
         if allowed_models and row["model_id"] not in allowed_models:
             continue
         if not args.include_disabled and (not row["enabled"] or row["last_status"] in (None, "FAIL", False)):
             print(f"Skipping disabled row: {row['model_id']} (enabled={row['enabled']}, last_status={row['last_status']})")
             continue
         # rows.append(row)
-
+        count += 1
+    print(f"Processed {count} rows from {xlsx_path} (sheet: {args.sheet})")
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8") as f:
