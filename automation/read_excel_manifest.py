@@ -160,10 +160,10 @@ def main():
     wb = load_workbook(xlsx_path, data_only=True)
     ws = wb[args.sheet]
     headers = [cell.value for cell in next(ws.iter_rows(min_row=1, max_row=1))]
-    state_history = load_state_history(args.state_file.strip())
+    # state_history = load_state_history(args.state_file.strip())
     allowed_models = {item.strip() for item in args.row_filter.split(",") if item.strip()}
     rows = []
-    count = 0
+    # count = 0
     for values in ws.iter_rows(min_row=2, values_only=True):
         if not any(value is not None and value != "" for value in values):
             continue
@@ -176,8 +176,8 @@ def main():
         if not args.include_disabled and (not row["enabled"] or row["last_status"] in (None, "FAIL", False)):
             print(f"Skipping disabled row: {row['model_id']} (enabled={row['enabled']}, last_status={row['last_status']})")
             continue
-        # rows.append(row)
-        count += 1
+        rows.append(row)
+        # count += 1
     print(f"Processed {count} rows from {xlsx_path} (sheet: {args.sheet})")
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
