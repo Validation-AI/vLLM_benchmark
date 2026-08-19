@@ -175,7 +175,7 @@ def main():
             print(f"debug row with model_id {row['model_id']} to see the {row['last_status']} and the type is {type(row['last_status'])}.")
         if allowed_models and row["model_id"] not in allowed_models:
             continue
-        if not args.include_disabled and (not row["enabled"] or not row["last_status"]):
+        if not args.include_disabled and (not row["enabled"] or row["last_status"] in (None, "FAIL", False)):
             print(f"Skipping disabled row: {row['model_id']} (enabled={row['enabled']}, last_status={row['last_status']})")
             continue
         rows.append(row)

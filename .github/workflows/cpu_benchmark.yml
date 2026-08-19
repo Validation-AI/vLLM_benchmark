@@ -282,7 +282,7 @@ jobs:
           }
 
           docker_image="vllm/vllm-openai-cpu:${DOCKER_NAME}"
-          workbook_path="${WORKSPACE}/automation/manifests/serving_tuning/automation_v0.xlsx"
+          workbook_path="${WORKSPACE}/automation_v1.xlsx"
           sheet_name="serving_tuning"
           rows_json="${WORKSPACE}/automation/generated/serving_tuning_rows.json"
           state_file="${WORKSPACE}/automation/history/serving_tuning/latest/row_state.json"
@@ -519,7 +519,7 @@ jobs:
 
           python3 "${WORKSPACE}/automation/writeback_results.py" \
             --results-csv "${WORKSPACE}/logs/serving_tuning_results.csv" \
-            --xlsx "${WORKSPACE}/automation/manifests/serving_tuning/automation_v0.xlsx" \
+            --xlsx "${WORKSPACE}/automation_v1.xlsx" \
             --build-number "${BUILD_NUMBER}" \
             --runs-dir "${WORKSPACE}/runs"
 
