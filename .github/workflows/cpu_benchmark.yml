@@ -510,18 +510,24 @@ jobs:
             docker rm "${container_name}" >/dev/null 2>&1 || true
           done < <(python3 -c 'import csv, json, sys; from pathlib import Path; rows=json.loads(Path(sys.argv[1]).read_text()); writer=csv.writer(sys.stdout, delimiter="\x1f", lineterminator="\n"); [writer.writerow([row.get("row_id", ""), row.get("model_id", ""), row.get("hugginface_path_185", ""), row.get("hugginface_path_124", ""), row.get("hugginface_path", ""), row.get("tp", ""), row.get("pp", ""), row.get("dp", ""), row.get("dp_mode", ""), row.get("extra_args", ""), row.get("last_batch_size", ""), row.get("history_source", "")]) for row in rows]' "${rows_json}")
 
+      - name: Generate report
+        if: always()
+        shell: bash
+        run: |
+          set -uo pipefail
+
           python3 "${WORKSPACE}/automation/compile_serving_tuning_results.py" \
             --results-dir "${WORKSPACE}/logs/row_results" \
             --csv-out "${WORKSPACE}/logs/serving_tuning_results.csv" \
             --xlsx-out "${WORKSPACE}/logs/serving_tuning_results.xlsx" \
             --runs-snapshot-dir "${WORKSPACE}/runs" \
-            --build-number "${BUILD_NUMBER}"
+            --build-number "${BUILD_NUMBER}" || echo "compile_serving_tuning_results failed (non-fatal)"
 
           python3 "${WORKSPACE}/automation/writeback_results.py" \
             --results-csv "${WORKSPACE}/logs/serving_tuning_results.csv" \
             --xlsx "${WORKSPACE}/automation_v1.xlsx" \
             --build-number "${BUILD_NUMBER}" \
-            --runs-dir "${WORKSPACE}/runs"
+            --runs-dir "${WORKSPACE}/runs" || echo "writeback_results failed (non-fatal)"
 
       - name: Upload logs
         if: always()
