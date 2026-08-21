@@ -307,12 +307,16 @@ jobs:
           fi
           persist_root="${RUNNER_WORKSPACE:-${WORKSPACE}/..}/vllm_bench_sessions/${session_id}"
           persist_results="${persist_root}/row_results"
-          mkdir -p "${persist_results}"
+          persist_server_logs="${persist_root}/server_logs"
+          mkdir -p "${persist_results}" "${persist_server_logs}"
           echo "SESSION_ID=${session_id}" | tee -a "${WORKSPACE}/logs/summary.log"
           echo "To continue this run later, re-run the workflow with session_id=${session_id} (completed rows will be skipped)."
           # Restore previously completed rows so the final compile/writeback
           # covers the whole matrix, not only the rows this run executed.
           cp -f "${persist_results}"/*.json "${WORKSPACE}/logs/row_results/" 2>/dev/null || true
+          # Restore previously saved per-model server logs too.
+          mkdir -p "${WORKSPACE}/logs/server_logs"
+          cp -rf "${persist_server_logs}"/. "${WORKSPACE}/logs/server_logs/" 2>/dev/null || true
 
           python3 "${WORKSPACE}/automation/read_excel_manifest.py" \
             --xlsx "${workbook_path}" \
@@ -338,6 +342,25 @@ jobs:
             python3 -c 'import json,sys; from pathlib import Path; (out_path,row_id,model_id,tp,pp,dp,dp_mode,dtype,hardware,length_config,status,error)=sys.argv[1:]; payload={"row_id":row_id,"model_id":model_id,"tp":int(tp) if str(tp).isdigit() else tp,"pp":int(pp) if str(pp).isdigit() else pp,"dp":int(dp) if str(dp).isdigit() else dp,"dp_mode":dp_mode,"dtype":dtype,"hardware":hardware,"length_config":length_config,"status":status,"best_batch_size":"","throughput":"","ttft_ms":"","tpot_ms":"","error":error}; p=Path(out_path); p.parent.mkdir(parents=True, exist_ok=True); p.write_text(json.dumps(payload, indent=2))' "$out_path" "$row_id" "$model_id" "$tp" "$pp" "$dp" "$dp_mode" "$dtype" "$hardware" "$length_config" "$status" "$error"
           }
 
+          # Snapshot this row's server-side logs into a per-model folder so the
+          # next model does not overwrite the generic router/worker/server log
+          # filenames the launch scripts reuse (router.log, router_worker_*.log).
+          snapshot_server_logs() {
+            local sid="$1" cname="$2"
+            local out_dir="${WORKSPACE}/logs/server_logs/${sid}"
+            mkdir -p "${out_dir}"
+            docker logs "${cname}" > "${out_dir}/container.log" 2>&1 || true
+            local f
+            for f in "${WORKSPACE}"/logs/router.log "${WORKSPACE}"/logs/router_worker_*.log "${WORKSPACE}"/logs/vllm_*.log; do
+              [[ -e "${f}" ]] && cp -f "${f}" "${out_dir}/" 2>/dev/null || true
+            done
+            # Mirror into the durable session store so resumed runs keep them.
+            if [[ -n "${persist_server_logs:-}" ]]; then
+              mkdir -p "${persist_server_logs}/${sid}"
+              cp -f "${out_dir}"/* "${persist_server_logs}/${sid}/" 2>/dev/null || true
+            fi
+          }
+
           while IFS=$'\x1f' read -r row_id model_id hfm02 hf124 hflegacy tp pp dp dp_mode row_extra last_batch_size history_source; do
             [[ -z "${row_id:-}" ]] && continue
             hf_path="$(pick_hf_path "${hfm02}" "${hf124}" "${hflegacy}")"
@@ -348,8 +371,8 @@ jobs:
 
             effective_extra_args="${BASE_EXTRA_ARGS} ${row_extra} --max-num-seqs=${last_batch_size:-256}"
             effective_extra_args="${effective_extra_args//  / }"
-            server_log="${WORKSPACE}/logs/server_${row_id}.log"
             safe_row_id="${row_id//[^A-Za-z0-9._-]/_}"
+            server_log="${WORKSPACE}/logs/server_${safe_row_id}.log"
             container_result_path="/workspace1/logs/row_results/${safe_row_id}.json"
             host_result_path="${WORKSPACE}/logs/row_results/${safe_row_id}.json"
             client_log_path="${WORKSPACE}/logs/client_${safe_row_id}.log"
@@ -370,6 +393,10 @@ jobs:
             container_name="vllm-${DEFAULT_DTYPE}"
             docker stop "${container_name}" >/dev/null 2>&1 || true
             docker rm "${container_name}" >/dev/null 2>&1 || true
+
+            # Clear the previous row's generic router logs so this row's snapshot
+            # does not pick up stale files (router_dp models reuse these names).
+            rm -f "${WORKSPACE}"/logs/router.log "${WORKSPACE}"/logs/router_worker_*.log 2>/dev/null || true
 
             if [[ "${DEVICE}" == "cpu" ]]; then
               server_script="vllm_server_launch_new.sh"
@@ -430,7 +457,7 @@ jobs:
             if ! wait_for_container "${container_name}" "${row_id}" "${dp_mode}" "${dp}"; then
               fail_len="${length_list[0]:-default}"
               echo "ROW_STARTUP_FAILED row_id=${row_id} model=${model_id} tp=${tp} pp=${pp} dp=${dp} dp_mode=${dp_mode} timeout_s=${ROUTER_STARTUP_TIMEOUT_S}" | tee -a "${WORKSPACE}/logs/summary.log"
-              docker logs "${container_name}" >> "${server_log}" 2>&1 || true
+              snapshot_server_logs "${safe_row_id}" "${container_name}"
               write_row_error_result "${host_result_path}" "${row_id}" "${model_id}" "${tp}" "${pp}" "${dp}" "${dp_mode}" "${DEFAULT_DTYPE}" "${HARDWARE}" "${fail_len}" "INFRA_ERROR" "server_startup_timeout"
               echo "ROW_RESULT row_id=${row_id} status=INFRA_ERROR model=${model_id} tp=${tp} pp=${pp} dp=${dp} dp_mode=${dp_mode} dtype=${DEFAULT_DTYPE} length=${fail_len} error=server_startup_timeout" | tee -a "${WORKSPACE}/logs/summary.log"
               cp -f "${host_result_path}" "${persist_results}/${safe_row_id}.json" 2>/dev/null || true
@@ -504,6 +531,9 @@ jobs:
 
             # Persist this row's result so a resumed run skips it.
             cp -f "${host_result_path}" "${persist_results}/${safe_row_id}.json" 2>/dev/null || true
+
+            # Save this model's server logs before the next row overwrites them.
+            snapshot_server_logs "${safe_row_id}" "${container_name}"
 
             docker exec "${container_name}" pkill -2 -f 'vllm.entrypoints.openai.api_server' >/dev/null 2>&1 || true
             docker stop "${container_name}" >/dev/null 2>&1 || true
