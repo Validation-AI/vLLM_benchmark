@@ -318,12 +318,20 @@ jobs:
           mkdir -p "${WORKSPACE}/logs/server_logs"
           cp -rf "${persist_server_logs}"/. "${WORKSPACE}/logs/server_logs/" 2>/dev/null || true
 
-          python3 "${WORKSPACE}/automation/read_excel_manifest.py" \
-            --xlsx "${workbook_path}" \
-            --sheet "${sheet_name}" \
-            --output "${rows_json}" \
-            $(if [[ -f "${state_file}" ]]; then printf '%s %q' --state-file "${state_file}"; elif [[ -f "${legacy_state_file}" ]]; then printf '%s %q' --state-file "${legacy_state_file}"; fi) \
-            $(if [[ -n "${ROW_FILTER}" ]]; then printf '%s %q' --row-filter "${ROW_FILTER}"; fi)
+          # Build args as an array so values with commas/special chars (e.g. a
+          # multi-model --row-filter) are passed verbatim. The previous
+          # printf '%q' inside an unquoted $() escaped commas as "\," and broke
+          # the model list, so only the last model was matched.
+          read_manifest_args=(--xlsx "${workbook_path}" --sheet "${sheet_name}" --output "${rows_json}")
+          if [[ -f "${state_file}" ]]; then
+            read_manifest_args+=(--state-file "${state_file}")
+          elif [[ -f "${legacy_state_file}" ]]; then
+            read_manifest_args+=(--state-file "${legacy_state_file}")
+          fi
+          if [[ -n "${ROW_FILTER}" ]]; then
+            read_manifest_args+=(--row-filter "${ROW_FILTER}")
+          fi
+          python3 "${WORKSPACE}/automation/read_excel_manifest.py" "${read_manifest_args[@]}"
 
 
           wait_for_container() {
