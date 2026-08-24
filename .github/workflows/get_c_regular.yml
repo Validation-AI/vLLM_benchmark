@@ -1,0 +1,164 @@
+name: cpu-get-c-regular
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner_labels:
+        description: JSON array of runner labels
+        required: true
+        default: '["cpu_benchmark"]'
+        type: string
+      node_label:
+        description: Optional node label for logging only
+        required: false
+        default: "m6980m02"
+        type: string
+      docker_image:
+        description: Full docker image URI used for server and client containers
+        required: true
+        default: vllm/vllm-openai-cpu:v0.24.0
+        type: string
+      case_list_xlsx:
+        description: Workbook path relative to repo root
+        required: false
+        default: automation/manifests/serving_tuning/automation_v0.xlsx
+        type: string
+      case_list_sheet:
+        description: Workbook sheet name
+        required: false
+        default: serving_tuning
+        type: string
+      continue_on_case_failure:
+        description: Continue remaining case-list rows after a failed row
+        required: false
+        default: true
+        type: boolean
+      validate_output_layout_only:
+        description: Only validate output paths without running benchmark
+        required: false
+        default: false
+        type: boolean
+      model:
+        description: Optional exact model_id filter applied to the workbook rows
+        required: false
+        default: ''
+        type: string
+      length_in:
+        description: Random input token length
+        required: false
+        default: '1024'
+        type: string
+      length_out:
+        description: Random output token length
+        required: false
+        default: '1024'
+        type: string
+      cache_path:
+        description: Optional cache root override mounted into containers
+        required: false
+        default: ''
+        type: string
+      server_extra_args:
+        description: Extra server launch arguments
+        required: false
+        default: --trust-remote-code --no-enable-prefix-caching --max-num-batched-tokens=16384 --gpu-memory-utilization=0.8
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  get-c-regular:
+    runs-on: ${{ fromJSON(inputs.runner_labels || '["self-hosted","linux","x64"]') }}
+    timeout-minutes: 4320
+    env:
+      WORKSPACE: ${{ github.workspace }}
+      NODE_LABEL: ${{ inputs.node_label }}
+      HF_TOKEN_FOR_SCRIPT: ${{ secrets.HF_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Validate secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${HF_TOKEN_FOR_SCRIPT:-}" ]]; then
+            echo "Missing required secret HF_TOKEN"
+            exit 1
+          fi
+
+      - name: Clean up stale vLLM containers
+        shell: bash
+        run: |
+          set -uo pipefail
+          stale=$(docker ps -aq --filter "name=^/vllm-" || true)
+          if [[ -n "${stale}" ]]; then
+            echo "Cleaning up stale containers:"
+            docker ps -a --filter "name=^/vllm-" --format '  {{.Names}} ({{.Status}})' || true
+            for cid in ${stale}; do
+              docker stop "${cid}" >/dev/null 2>&1 || true
+              docker rm -f "${cid}" >/dev/null 2>&1 || true
+            done
+          else
+            echo "No stale vLLM containers found."
+          fi
+
+      - name: Install Python dependency
+        shell: bash
+        run: python3 -m pip install --user --quiet openpyxl
+
+      - name: Run get_C_regular
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          export IMAGE='${{ inputs.docker_image }}'
+          export REPO='${WORKSPACE}'
+          export CACHE='${{ inputs.cache_path }}'
+          export MODEL='${{ inputs.model }}'
+          export DTYPE='bfloat16'
+          export DEVICE='cpu'
+          export HARDWARE='emr'
+          export LENGTH_IN='${{ inputs.length_in }}'
+          export LENGTH_OUT='${{ inputs.length_out }}'
+          export SERVER_EXTRA_ARGS='${{ inputs.server_extra_args }}'
+          export RUN_FROM_CASE_LIST='1'
+          export CONTINUE_ON_CASE_FAILURE='${{ inputs.continue_on_case_failure && '1' || '0' }}'
+          export VALIDATE_OUTPUT_LAYOUT_ONLY='${{ inputs.validate_output_layout_only && '1' || '0' }}'
+          export CASE_LIST_XLSX='${WORKSPACE}/${{ inputs.case_list_xlsx }}'
+          export CASE_LIST_SHEET='${{ inputs.case_list_sheet }}'
+          export CASE_LIST_MODEL_FILTER='${{ inputs.model }}'
+
+          echo "Node label: ${NODE_LABEL}"
+          echo "Workspace: ${WORKSPACE}"
+          echo "Image: ${IMAGE}"
+          echo "Case list workbook: ${CASE_LIST_XLSX}"
+          echo "Case-list model filter: ${CASE_LIST_MODEL_FILTER}"
+
+          bash "${WORKSPACE}/scripts/sweep/get_C_regular.sh"
+
+      - name: Upload get_c_regular logs
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: get-c-regular-logs
+          path: |
+            logs/get_c_regular/**
+          if-no-files-found: ignore
+
+      - name: Clean up vLLM containers
+        if: always()
+        shell: bash
+        run: |
+          set -uo pipefail
+          stale=$(docker ps -aq --filter "name=^/vllm-" || true)
+          if [[ -n "${stale}" ]]; then
+            echo "Cleaning up vLLM containers:"
+            docker ps -a --filter "name=^/vllm-" --format '  {{.Names}} ({{.Status}})' || true
+            for cid in ${stale}; do
+              docker stop "${cid}" >/dev/null 2>&1 || true
+              docker rm -f "${cid}" >/dev/null 2>&1 || true
+            done
+          else
+            echo "No vLLM containers to remove."
+          fi
