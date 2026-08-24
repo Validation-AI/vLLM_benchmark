@@ -146,6 +146,37 @@ jobs:
         shell: bash
         run: python3 -m pip install --user --quiet openpyxl
 
+      - name: Print workflow configuration
+        shell: bash
+        run: |
+          set -uo pipefail
+          echo "=== cpu-vllm-benchmark configuration ==="
+          echo 'runner_labels            = ${{ inputs.runner_labels }}'
+          echo "node_label               = ${NODE_LABEL}"
+          echo "default_dtype            = ${DEFAULT_DTYPE}"
+          echo "benchmark_script         = ${BENCHMARK_SCRIPT}"
+          echo "engine_type              = ${ENGINE_TYPE}"
+          echo "hardware                 = ${HARDWARE}"
+          echo "device                   = ${DEVICE}"
+          echo "base_extra_args          = ${BASE_EXTRA_ARGS}"
+          echo "vllm_cpu_kvcache_space   = ${VLLM_CPU_KVCACHE_SPACE}"
+          echo "cpu_visible_memory_nodes = ${CPU_VISIBLE_MEMORY_NODES}"
+          echo "router_startup_timeout_s = ${ROUTER_STARTUP_TIMEOUT_S}"
+          echo "backend                  = ${BACKEND}"
+          echo "dataset                  = ${DATASET}"
+          echo "test_mode                = ${TEST_MODE}"
+          echo "tuning_slas              = ${TUNING_SLAS}"
+          echo "docker_name              = ${DOCKER_NAME}"
+          echo "openai_api_base          = ${OPENAI_API_BASE}"
+          echo "length_configs           = ${LENGTH_CONFIGS}"
+          echo "max_concurrency          = ${MAX_CONCURRENCY}"
+          echo "tp_backbone              = ${TP_BACKBONE}"
+          echo "row_filter               = ${ROW_FILTER}"
+          echo "session_id (input)       = ${SESSION_ID:-<auto: run number>}"
+          echo "build_number             = ${BUILD_NUMBER}"
+          echo "build_url                = ${BUILD_URL}"
+          echo "hf_token                 = $([[ -n "${HF_TOKEN_FOR_SCRIPT:-}" ]] && echo 'set' || echo '<empty>')"
+
       - name: Run manifest tuning
         shell: bash
         run: |
@@ -402,9 +433,9 @@ jobs:
             docker stop "${container_name}" >/dev/null 2>&1 || true
             docker rm "${container_name}" >/dev/null 2>&1 || true
 
-            # Clear the previous row's generic router logs so this row's snapshot
-            # does not pick up stale files (router_dp models reuse these names).
-            rm -f "${WORKSPACE}"/logs/router.log "${WORKSPACE}"/logs/router_worker_*.log 2>/dev/null || true
+            # Clear the previous row's generic server logs so this row's snapshot
+            # only captures its own (router_dp reuses names; vllm_*.log accrues).
+            rm -f "${WORKSPACE}"/logs/router.log "${WORKSPACE}"/logs/router_worker_*.log "${WORKSPACE}"/logs/vllm_*.log 2>/dev/null || true
 
             if [[ "${DEVICE}" == "cpu" ]]; then
               server_script="vllm_server_launch_new.sh"
@@ -566,6 +597,14 @@ jobs:
             --xlsx "${WORKSPACE}/automation_v1.xlsx" \
             --build-number "${BUILD_NUMBER}" \
             --runs-dir "${WORKSPACE}/runs" || echo "writeback_results failed (non-fatal)"
+
+          # Echo the results so they are visible without downloading artifacts.
+          echo "=== serving_tuning_results.csv ==="
+          if [[ -f "${WORKSPACE}/logs/serving_tuning_results.csv" ]]; then
+            cat "${WORKSPACE}/logs/serving_tuning_results.csv"
+          else
+            echo "(serving_tuning_results.csv not found)"
+          fi
 
       - name: Upload logs
         if: always()
