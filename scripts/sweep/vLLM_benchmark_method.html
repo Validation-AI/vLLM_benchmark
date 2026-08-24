@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stable CONC Selection and Serving Framework Comparison</title>
+  <style>
+    :root { --ink:#17202a; --muted:#5d6d7e; --line:#d8dee7; --panel:#f7f9fc; --accent:#1f6feb; --accent2:#0f766e; --warn:#b45309; }
+    * { box-sizing: border-box; }
+    body { margin:0; color:var(--ink); background:#eef2f7; font-family:"Aptos","Segoe UI",sans-serif; line-height:1.45; }
+    main { width:min(1180px,100%); margin:0 auto; padding:28px 18px 52px; }
+    .slide { min-height:680px; margin:0 auto 28px; padding:46px 56px; background:#fff; border:1px solid var(--line); box-shadow:0 18px 44px rgba(23,32,42,.08); display:flex; flex-direction:column; gap:24px; }
+    h1,h2,h3,p { margin:0; }
+    h1 { font-size:42px; line-height:1.1; }
+    h2 { font-size:34px; line-height:1.15; }
+    h3 { font-size:20px; margin-bottom:10px; }
+    .subtitle { color:var(--muted); font-size:19px; max-width:850px; }
+    .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px; }
+    .card { padding:22px; background:var(--panel); border:1px solid var(--line); border-radius:8px; }
+    .accent { border-left:5px solid var(--accent); }
+    .accent2 { border-left:5px solid var(--accent2); }
+    .warn { border-left:5px solid var(--warn); }
+    ol,ul { margin:0; padding-left:22px; font-size:18px; }
+    li + li { margin-top:8px; }
+    code,pre { font-family:"Cascadia Mono","Consolas",monospace; }
+    pre { margin:0; padding:18px 20px; background:#eef4ff; border:1px solid #c8d8ff; border-radius:8px; font-size:17px; overflow:auto; }
+    .equation { font-size:24px; font-weight:650; color:var(--accent); }
+    table { width:100%; border-collapse:collapse; font-size:17px; }
+    th,td { padding:12px 14px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+    th { background:#edf3fb; font-weight:700; }
+    .footer-note { margin-top:auto; padding-top:16px; border-top:1px solid var(--line); color:var(--muted); font-size:16px; }
+    .tag-row { display:flex; flex-wrap:wrap; gap:10px; }
+    .tag { padding:7px 10px; border:1px solid #b9c8dc; border-radius:999px; background:#f8fafc; color:#334155; font-size:15px; font-weight:600; }
+    .chart { width:100%; max-height:470px; object-fit:contain; border:1px solid var(--line); border-radius:8px; background:#fff; }
+    @media print { body{background:#fff;} main{width:100%;padding:0;} .slide{min-height:100vh;margin:0;border:0;box-shadow:none;page-break-after:always;} }
+  </style>
+</head>
+<body>
+<main>
+  <section class="slide">
+    <div>
+      <h1>Stable Low-Latency CONC Selection</h1>
+      <p class="subtitle">Choose a stable serving point from a concurrency sweep. The goal is not absolute peak throughput, but a reliable low-latency operating point for regression.</p>
+    </div>
+    <div class="grid">
+      <div class="card accent">
+        <h3>Selection Rule</h3>
+        <ol>
+          <li>Sweep <code>max-concurrency</code> from low to high.</li>
+          <li>Run the sweep with <code>no-enable-prefix-caching</code>.</li>
+          <li>Track output throughput and latency, especially TPOT and TTFT.</li>
+          <li>Maintain the current best throughput point.</li>
+          <li>After a throughput peak appears, check the next <code>K</code> points.</li>
+          <li>If the next <code>K</code> points do not exceed the peak by more than <code>eps</code>, confirm this point.</li>
+        </ol>
+      </div>
+      <div class="card accent2">
+        <h3>Default Parameters</h3>
+        <pre>K = 5
+eps = 1%
+
+C_recommended = first confirmed throughput peak</pre>
+      </div>
+    </div>
+    <div class="card warn">
+      <h3>Why This Point</h3>
+      <p>This avoids selecting a later high-throughput point that only improves throughput slightly while significantly increasing latency. It is designed for stable low-latency regression, not maximum capacity reporting.</p>
+    </div>
+    <div class="footer-note">A3B example: CONC=53 is followed by CONC=54-58 and none exceeds <code>throughput(53) * 1.01</code>, so <code>C_recommended = 53</code>.</div>
+  </section>
+
+  <section class="slide">
+    <div>
+      <h2>Deriving Regular Test CONC</h2>
+      <p class="subtitle">Apply a safety margin after selecting the stable low-latency point.</p>
+    </div>
+    <div class="card accent"><p class="equation">C_regular = floor(C_recommended * 0.9)</p></div>
+    <div class="grid">
+      <div class="card">
+        <h3>Purpose</h3>
+        <ul>
+          <li>Leave headroom for runtime variation.</li>
+          <li>Reduce impact from scheduler fluctuation.</li>
+          <li>Avoid KV cache spike sensitivity.</li>
+          <li>Make regression runs more stable and repeatable.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Example</h3>
+        <pre>C_recommended = 53
+
+      C_regular = floor(53 * 0.9)
+          = 47</pre>
+      </div>
+    </div>
+    <div class="footer-note"><code>C_regular</code> is the concurrency used by regular performance regression.</div>
+  </section>
+
+  <section class="slide">
+    <div>
+      <h2>Regression Benchmark Configuration</h2>
+      <p class="subtitle">Use a fixed steady-state benchmark shape after deriving <code>C_regular</code>.</p>
+    </div>
+    <div class="card accent">
+      <pre>max-concurrency = C_regular
+max-num-seqs  = C_regular
+no-enable-prefix-caching
+num_warmups     = C_regular
+num_prompt      = 5 * C_regular
+request-rate    = inf</pre>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <h3>Example</h3>
+  <pre>
+C_regular = 47
+max-concurrency = 47
+max-num-seqs    = 47
+no-enable-prefix-caching
+num_warmups     = 47
+num_prompt      = 235
+request-rate    = inf</pre>
+      </div>
+      <div class="card">
+        <h3>Why <code>num_prompt = 5 * CONC</code></h3>
+        <p>It does not increase effective concurrency. It keeps enough pending requests available so the scheduler can run in a steadier prefill/decode interleaving mode, reducing first-wave burst and tail-drain effects.</p>
+      </div>
+      <div class="card">
+        <h3>Why <code>--max-num-seqs = CONC</code></h3>
+        <p>It aligns the server-side active sequence limit with the client-side concurrency limit. This removes an extra configuration variable, making repeated runs and framework comparisons more reproducible.</p>
+      </div>
+    </div>
+    <div class="footer-note">This measures stable serving throughput and latency at a controlled concurrency.</div>
+  </section>
+
+  <section class="slide">
+    <div>
+      <h2>When To Re-sweep CONC</h2>
+      <p class="subtitle">For performance regression, keep <code>C_regular</code> fixed. Re-sweep only when the old point stops being a valid probe.</p>
+    </div>
+    <div class="grid">
+      <div class="card accent2">
+        <h3>Re-sweep Triggers</h3>
+        <ul>
+          <li>Expected perf change: a feature intentionally trades performance for functionality, or improves performance enough that the old point is no longer representative.</li>
+          <li>System environment change: device SKU such as B60/B70/CRI, device count, memory size, or major runtime/driver stack changes.</li>
+          <li>Test configuration change: model, TP/PP, dtype, ISL/OSL, prefix caching, or key serving parameters.</li>
+        </ul>
+      </div>
+      <div class="card accent">
+        <h3>Rule</h3>
+        <ul>
+          <li>Keep <code>C_regular</code> fixed for normal regression tracking.</li>
+          <li>Refresh it only in the three cases above.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-note">Short version: keep one fixed regression CONC, and refresh it only for expected perf shifts, system environment changes, or benchmark configuration changes.</div>
+  </section>
+
+  <section class="slide">
+    <div>
+      <h2>What This Method Measures</h2>
+      <p class="subtitle">The selected regression point is a stable serving point, not a maximum capacity point and not a customer SLA point.</p>
+    </div>
+    <div class="grid">
+      <div class="card accent2">
+        <h3>Measures</h3>
+        <ul>
+          <li>Stable serving throughput.</li>
+          <li>Steady-state scheduler behavior.</li>
+          <li>Decode latency under controlled concurrency.</li>
+          <li>Regression sensitivity across versions and builds.</li>
+        </ul>
+      </div>
+      <div class="card warn">
+        <h3>Avoids</h3>
+        <ul>
+          <li>Over-selecting an aggressive global peak.</li>
+          <li>Overreacting to single-point throughput noise.</li>
+          <li>Using first-wave burst latency as steady-state latency.</li>
+          <li>Mixing capacity peak with SLA qualification.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card">
+      <pre>C_recommended = first confirmed low-latency peak
+C_regular  = floor(C_recommended * 0.9)
+num_prompt    = 5 * C_regular</pre>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div>
+      <h2>Example: How the CONC Is Selected</h2>
+      <p class="subtitle">Qwen3-30B-A3B TP4 4K/1K sweep using output throughput vs median TPOT tradeoff.</p>
+    </div>
+    <svg class="chart" xmlns="http://www.w3.org/2000/svg" width="1100" height="700" viewBox="0 0 1100 700">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<style>text{font-family:DejaVu Sans,Arial,sans-serif;fill:#1f2933}.small{font-size:13px}.label{font-size:15px}.title{font-size:22px;font-weight:700}.tick{font-size:12px;fill:#52606d}.legend{font-size:13px}</style>
+<text x="550.0" y="35" text-anchor="middle" class="title">Qwen3-30B-A3B TP4 4K/1K TPOT Tradeoff</text>
+<text x="550.0" y="675" text-anchor="middle" class="label">TPOT latency (ms, lower is better)</text>
+<text x="22" y="350.0" text-anchor="middle" class="label" transform="rotate(-90 22 350.0)">output_token_throughput (higher is better)</text>
+<line x1="90.0" y1="70" x2="90.0" y2="610" stroke="#e4e7eb"/>
+<text x="90.0" y="632" text-anchor="middle" class="tick">41.8</text>
+<line x1="282.0" y1="70" x2="282.0" y2="610" stroke="#e4e7eb"/>
+<text x="282.0" y="632" text-anchor="middle" class="tick">45.9</text>
+<line x1="474.0" y1="70" x2="474.0" y2="610" stroke="#e4e7eb"/>
+<text x="474.0" y="632" text-anchor="middle" class="tick">50.0</text>
+<line x1="666.0" y1="70" x2="666.0" y2="610" stroke="#e4e7eb"/>
+<text x="666.0" y="632" text-anchor="middle" class="tick">54.2</text>
+<line x1="858.0" y1="70" x2="858.0" y2="610" stroke="#e4e7eb"/>
+<text x="858.0" y="632" text-anchor="middle" class="tick">58.3</text>
+<line x1="1050.0" y1="70" x2="1050.0" y2="610" stroke="#e4e7eb"/>
+<text x="1050.0" y="632" text-anchor="middle" class="tick">62.4</text>
+<line x1="90" y1="610.0" x2="1050" y2="610.0" stroke="#e4e7eb"/>
+<text x="78" y="614.0" text-anchor="end" class="tick">0</text>
+<line x1="90" y1="502.0" x2="1050" y2="502.0" stroke="#e4e7eb"/>
+<text x="78" y="506.0" text-anchor="end" class="tick">190</text>
+<line x1="90" y1="394.0" x2="1050" y2="394.0" stroke="#e4e7eb"/>
+<text x="78" y="398.0" text-anchor="end" class="tick">380</text>
+<line x1="90" y1="286.0" x2="1050" y2="286.0" stroke="#e4e7eb"/>
+<text x="78" y="290.0" text-anchor="end" class="tick">571</text>
+<line x1="90" y1="178.0" x2="1050" y2="178.0" stroke="#e4e7eb"/>
+<text x="78" y="182.0" text-anchor="end" class="tick">761</text>
+<line x1="90" y1="70.0" x2="1050" y2="70.0" stroke="#e4e7eb"/>
+<text x="78" y="74.0" text-anchor="end" class="tick">951</text>
+<line x1="90" y1="610" x2="1050" y2="610" stroke="#52606d" stroke-width="1.2"/>
+<line x1="90" y1="70" x2="90" y2="610" stroke="#52606d" stroke-width="1.2"/>
+<polyline points="193.4,597.2 295.7,585.7 156.2,571.3 174.8,559.0 184.1,547.0 202.7,535.3 230.6,524.4 207.3,511.3 230.6,500.9 239.9,489.6 295.7,481.2 253.8,467.4 277.1,457.7 323.6,449.7 300.3,437.4 351.5,430.3 379.4,422.0 267.8,401.8 318.9,396.0 346.8,387.6 388.7,381.7 314.3,363.6 309.6,352.9 342.2,346.4 332.9,335.3 384.0,330.9 342.2,316.2 323.6,303.8 318.9,293.0 388.7,292.3 384.0,282.2 374.7,271.7 384.0,263.1 360.8,250.3 384.0,244.2 407.3,238.2 398.0,228.3 393.3,218.0 398.0,210.0 407.3,202.1 421.2,195.4 421.2,186.1 439.8,181.1 430.5,170.0 449.1,164.6 463.1,158.5 611.8,173.8 486.3,145.2 491.0,138.2 649.0,158.4 542.1,130.6 532.8,120.3 514.2,109.0 560.7,109.6 565.4,135.2 583.9,154.5 607.2,166.9 663.0,191.9 718.8,208.5 779.2,222.5 844.3,230.1 830.4,239.4 909.4,249.0 979.1,257.8 983.8,262.9" fill="none" stroke="#94a3b8" stroke-width="1.3" opacity="0.65"/>
+<polyline points="156.2,571.3 174.8,559.0 184.1,547.0 202.7,535.3 207.3,511.3 230.6,500.9 239.9,489.6 253.8,467.4 267.8,401.8 309.6,352.9 318.9,293.0 360.8,250.3 384.0,244.2 393.3,218.0 398.0,210.0 407.3,202.1 421.2,186.1 430.5,170.0 449.1,164.6 463.1,158.5 486.3,145.2 491.0,138.2 514.2,109.0" fill="none" stroke="#dc2626" stroke-width="3"/>
+<circle cx="193.4" cy="597.2" r="5.4" fill="#235aaa" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=1, throughput=22.59, TPOT=44.00 ms</title></circle>
+<text x="200.4" y="590.2" class="tick">1</text>
+<circle cx="295.7" cy="585.7" r="5.4" fill="#235da7" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=2, throughput=42.77, TPOT=46.20 ms</title></circle>
+<circle cx="156.2" cy="571.3" r="5.4" fill="#2460a4" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=3, throughput=68.17, TPOT=43.20 ms</title></circle>
+<circle cx="174.8" cy="559.0" r="5.4" fill="#2464a1" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=4, throughput=89.75, TPOT=43.60 ms</title></circle>
+<circle cx="184.1" cy="547.0" r="5.4" fill="#25679e" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=5, throughput=110.98, TPOT=43.80 ms</title></circle>
+<circle cx="202.7" cy="535.3" r="5.4" fill="#266b9b" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=6, throughput=131.51, TPOT=44.20 ms</title></circle>
+<circle cx="230.6" cy="524.4" r="5.4" fill="#266e99" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=7, throughput=150.66, TPOT=44.80 ms</title></circle>
+<text x="237.6" y="517.4" class="tick">7</text>
+<circle cx="207.3" cy="511.3" r="5.4" fill="#277296" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=8, throughput=173.77, TPOT=44.30 ms</title></circle>
+<circle cx="230.6" cy="500.9" r="5.4" fill="#287593" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=9, throughput=192.16, TPOT=44.80 ms</title></circle>
+<circle cx="239.9" cy="489.6" r="5.4" fill="#287890" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=10, throughput=211.97, TPOT=45.00 ms</title></circle>
+<circle cx="295.7" cy="481.2" r="5.4" fill="#297c8d" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=11, throughput=226.83, TPOT=46.20 ms</title></circle>
+<circle cx="253.8" cy="467.4" r="5.4" fill="#297f8b" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=12, throughput=251.03, TPOT=45.30 ms</title></circle>
+<circle cx="277.1" cy="457.7" r="5.4" fill="#2a8388" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=13, throughput=268.14, TPOT=45.80 ms</title></circle>
+<text x="284.1" y="450.7" class="tick">13</text>
+<circle cx="323.6" cy="449.7" r="5.4" fill="#2b8685" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=14, throughput=282.23, TPOT=46.80 ms</title></circle>
+<circle cx="300.3" cy="437.4" r="5.4" fill="#2b8a82" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=15, throughput=303.94, TPOT=46.30 ms</title></circle>
+<circle cx="351.5" cy="430.3" r="5.4" fill="#2c8d7f" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=16, throughput=316.39, TPOT=47.40 ms</title></circle>
+<circle cx="379.4" cy="422.0" r="5.4" fill="#2d917d" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=17, throughput=331.08, TPOT=48.00 ms</title></circle>
+<circle cx="267.8" cy="401.8" r="5.4" fill="#2d947a" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=18, throughput=366.61, TPOT=45.60 ms</title></circle>
+<circle cx="318.9" cy="396.0" r="5.4" fill="#2e9777" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=19, throughput=376.88, TPOT=46.70 ms</title></circle>
+<text x="325.9" y="389.0" class="tick">19</text>
+<circle cx="346.8" cy="387.6" r="5.4" fill="#2e9b74" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=20, throughput=391.71, TPOT=47.30 ms</title></circle>
+<circle cx="388.7" cy="381.7" r="5.4" fill="#2f9e71" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=21, throughput=402.04, TPOT=48.20 ms</title></circle>
+<circle cx="314.3" cy="363.6" r="5.4" fill="#30a26e" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=22, throughput=433.89, TPOT=46.60 ms</title></circle>
+<circle cx="309.6" cy="352.9" r="5.4" fill="#30a56c" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=23, throughput=452.76, TPOT=46.50 ms</title></circle>
+<circle cx="342.2" cy="346.4" r="5.4" fill="#31a969" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=24, throughput=464.25, TPOT=47.20 ms</title></circle>
+<circle cx="332.9" cy="335.3" r="5.4" fill="#32ac66" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=25, throughput=483.70, TPOT=47.00 ms</title></circle>
+<text x="339.9" y="328.3" class="tick">25</text>
+<circle cx="384.0" cy="330.9" r="5.4" fill="#32af63" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=26, throughput=491.49, TPOT=48.10 ms</title></circle>
+<circle cx="342.2" cy="316.2" r="5.4" fill="#33b360" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=27, throughput=517.37, TPOT=47.20 ms</title></circle>
+<circle cx="323.6" cy="303.8" r="5.4" fill="#33b65e" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=28, throughput=539.21, TPOT=46.80 ms</title></circle>
+<circle cx="318.9" cy="293.0" r="5.4" fill="#34ba5b" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=29, throughput=558.16, TPOT=46.70 ms</title></circle>
+<circle cx="388.7" cy="292.3" r="5.4" fill="#35bd58" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=30, throughput=559.39, TPOT=48.20 ms</title></circle>
+<circle cx="384.0" cy="282.2" r="5.4" fill="#35c155" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=31, throughput=577.29, TPOT=48.10 ms</title></circle>
+<text x="391.0" y="275.2" class="tick">31</text>
+<circle cx="374.7" cy="271.7" r="5.4" fill="#36c452" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=32, throughput=595.72, TPOT=47.90 ms</title></circle>
+<circle cx="384.0" cy="263.1" r="5.4" fill="#37c850" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=33, throughput=610.81, TPOT=48.10 ms</title></circle>
+<circle cx="360.8" cy="250.3" r="5.4" fill="#3dc84e" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=34, throughput=633.50, TPOT=47.60 ms</title></circle>
+<circle cx="384.0" cy="244.2" r="5.4" fill="#43c94d" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=35, throughput=644.09, TPOT=48.10 ms</title></circle>
+<circle cx="407.3" cy="238.2" r="5.4" fill="#49c94c" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=36, throughput=654.76, TPOT=48.60 ms</title></circle>
+<circle cx="398.0" cy="228.3" r="5.4" fill="#50ca4b" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=37, throughput=672.14, TPOT=48.40 ms</title></circle>
+<text x="405.0" y="221.3" class="tick">37</text>
+<circle cx="393.3" cy="218.0" r="5.4" fill="#56cb49" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=38, throughput=690.38, TPOT=48.30 ms</title></circle>
+<circle cx="398.0" cy="210.0" r="5.4" fill="#5ccb48" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=39, throughput=704.33, TPOT=48.40 ms</title></circle>
+<circle cx="407.3" cy="202.1" r="5.4" fill="#62cc47" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=40, throughput=718.31, TPOT=48.60 ms</title></circle>
+<circle cx="421.2" cy="195.4" r="5.4" fill="#69cd46" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=41, throughput=730.16, TPOT=48.90 ms</title></circle>
+<circle cx="421.2" cy="186.1" r="5.4" fill="#6fcd44" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=42, throughput=746.39, TPOT=48.90 ms</title></circle>
+<circle cx="439.8" cy="181.1" r="5.4" fill="#75ce43" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=43, throughput=755.33, TPOT=49.30 ms</title></circle>
+<text x="446.8" y="174.1" class="tick">43</text>
+<circle cx="430.5" cy="170.0" r="5.4" fill="#7bce42" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=44, throughput=774.85, TPOT=49.10 ms</title></circle>
+<circle cx="449.1" cy="164.6" r="5.4" fill="#82cf41" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=45, throughput=784.41, TPOT=49.50 ms</title></circle>
+<circle cx="463.1" cy="158.5" r="5.4" fill="#88d03f" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=46, throughput=795.06, TPOT=49.80 ms</title></circle>
+<circle cx="611.8" cy="173.8" r="5.4" fill="#8ed03e" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=47, throughput=768.10, TPOT=53.00 ms</title></circle>
+<circle cx="486.3" cy="145.2" r="5.4" fill="#94d13d" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=48, throughput=818.47, TPOT=50.30 ms</title></circle>
+<circle cx="491.0" cy="138.2" r="5.4" fill="#9bd23c" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=49, throughput=830.85, TPOT=50.40 ms</title></circle>
+<text x="498.0" y="131.2" class="tick">49</text>
+<circle cx="649.0" cy="158.4" r="5.4" fill="#a1d23a" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=50, throughput=795.32, TPOT=53.80 ms</title></circle>
+<circle cx="542.1" cy="130.6" r="5.4" fill="#a7d339" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=51, throughput=844.18, TPOT=51.50 ms</title></circle>
+<circle cx="532.8" cy="120.3" r="5.4" fill="#add338" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=52, throughput=862.42, TPOT=51.30 ms</title></circle>
+<circle cx="514.2" cy="109.0" r="5.4" fill="#b4d437" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=53, throughput=882.15, TPOT=50.90 ms</title></circle>
+<text x="521.2" y="102.0" class="tick">53</text>
+<circle cx="560.7" cy="109.6" r="5.4" fill="#bad535" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=54, throughput=881.23, TPOT=51.90 ms</title></circle>
+<circle cx="565.4" cy="135.2" r="5.4" fill="#c0d534" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=55, throughput=836.04, TPOT=52.00 ms</title></circle>
+<text x="572.4" y="128.2" class="tick">55</text>
+<circle cx="583.9" cy="154.5" r="5.4" fill="#c6d633" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=56, throughput=802.05, TPOT=52.40 ms</title></circle>
+<circle cx="607.2" cy="166.9" r="5.4" fill="#cdd732" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=57, throughput=780.25, TPOT=52.90 ms</title></circle>
+<circle cx="663.0" cy="191.9" r="5.4" fill="#d3d730" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=58, throughput=736.30, TPOT=54.10 ms</title></circle>
+<circle cx="718.8" cy="208.5" r="5.4" fill="#d9d82f" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=59, throughput=707.08, TPOT=55.30 ms</title></circle>
+<circle cx="779.2" cy="222.5" r="5.4" fill="#dfd82e" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=60, throughput=682.32, TPOT=56.60 ms</title></circle>
+<circle cx="844.3" cy="230.1" r="5.4" fill="#e6d92d" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=61, throughput=668.93, TPOT=58.00 ms</title></circle>
+<text x="851.3" y="223.1" class="tick">61</text>
+<circle cx="830.4" cy="239.4" r="5.4" fill="#ecda2b" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=62, throughput=652.66, TPOT=57.70 ms</title></circle>
+<circle cx="909.4" cy="249.0" r="5.4" fill="#f2da2a" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=63, throughput=635.71, TPOT=59.40 ms</title></circle>
+<circle cx="979.1" cy="257.8" r="5.4" fill="#f8db29" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=64, throughput=620.17, TPOT=60.90 ms</title></circle>
+<circle cx="983.8" cy="262.9" r="5.4" fill="#ffdc28" stroke="#ffffff" stroke-width="1" opacity="0.88"><title>CONC=65, throughput=611.27, TPOT=61.00 ms</title></circle>
+<text x="514.2" y="116.0" text-anchor="middle" font-size="28" fill="#f59e0b" stroke="#111827" stroke-width="0.3">*</text>
+<text x="528.2" y="95.0" class="small" font-weight="700">Peak C53: 882.15, 50.9</text>
+<rect x="507.2" y="102.0" width="14" height="14" transform="rotate(45 514.2 109.0)" fill="#2563eb" stroke="#111827" stroke-width="1"/>
+<text x="528.2" y="95.0" class="small" font-weight="700">Recommended C53: 882.15, 50.9</text>
+<rect x="690" y="95" width="360" height="112" fill="#ffffff" stroke="#cbd5e1" rx="6"/>
+<line x1="708" y1="120" x2="745" y2="120" stroke="#dc2626" stroke-width="3"/>
+<text x="756" y="124" class="legend">Pareto frontier</text>
+<text x="713" y="151" font-size="22" fill="#f59e0b">*</text><text x="756" y="151" class="legend">Peak throughput</text>
+<rect x="715" y="167" width="11" height="11" transform="rotate(45 720.5 172.5)" fill="#2563eb" stroke="#111827"/>
+<text x="756" y="177" class="legend">First confirmed local peak</text>
+<text x="710" y="198" class="legend">K=5, throughput eps=1.0%, latency eps=1.0%</text>
+</svg>
+    <div class="grid">
+      <div class="card accent">
+        <h3>Confirmed Peak</h3>
+        <pre>C_recommended = 53
+output throughput = 882.15 tok/s
+median TPOT = 50.9 ms/token
+
+Confirmed by CONC = 54,55,56,57,58</pre>
+      </div>
+      <div class="card accent2">
+        <h3>Regression Setting</h3>
+        <pre>C_regular = floor(53 * 0.9) = 47
+
+max-concurrency = 47
+max-num-seqs  = 47
+no-enable-prefix-caching
+num_warmups     = 47
+num_prompt      = 235</pre>
+      </div>
+    </div>
+    <div class="footer-note">The selected point is the first confirmed high-throughput point whose following 5 points do not exceed it by more than 1%.</div>
+  </section>
+
+</main>
+</body>
+</html>
