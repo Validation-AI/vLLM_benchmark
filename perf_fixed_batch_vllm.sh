@@ -302,7 +302,8 @@ if (( persisted_batch_size <= 0 )); then
     write_tuning_result_file "${perf_status}" "" "" "" "" "${perf_error_msg}"
     exit 0
 fi
-batch_size=$((persisted_batch_size * 5))
+# batch_size=$((persisted_batch_size * 5))
+batch_size=$((persisted_batch_size))
 #if (( persisted_batch_size * 5 > max_batch_size )); then
 #    echo "Requested batch_size=$((persisted_batch_size * 5)) exceeds max_batch_size=${max_batch_size}; clamping."
 #    batch_size=$((max_batch_size))
