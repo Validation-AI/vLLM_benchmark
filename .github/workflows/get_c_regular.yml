@@ -154,7 +154,7 @@ jobs:
           export RUN_FROM_CASE_LIST='1'
           export CONTINUE_ON_CASE_FAILURE='${{ inputs.continue_on_case_failure && '1' || '0' }}'
           export VALIDATE_OUTPUT_LAYOUT_ONLY='${{ inputs.validate_output_layout_only && '1' || '0' }}'
-          export CASE_LIST_XLSX='${WORKSPACE}/${{ inputs.case_list_xlsx }}'
+          export CASE_LIST_XLSX="${WORKSPACE}/${{ inputs.case_list_xlsx }}"
           export CASE_LIST_SHEET='${{ inputs.case_list_sheet }}'
           export CASE_LIST_MODEL_FILTER='${{ inputs.model }}'
 
