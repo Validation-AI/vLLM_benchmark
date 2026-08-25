@@ -46,6 +46,7 @@ KEEP_DETAILED_RUN_LOGS=${KEEP_DETAILED_RUN_LOGS:-0}
 CASE_LIST_XLSX=${CASE_LIST_XLSX:-${REPO_ROOT}/automation/manifests/serving_tuning/automation_v0.xlsx}
 CASE_LIST_SHEET=${CASE_LIST_SHEET:-serving_tuning}
 CASE_LIST_MODEL_FILTER=${CASE_LIST_MODEL_FILTER:-}
+CASE_LIST_JSON_OUTPUT=${CASE_LIST_JSON_OUTPUT:-}
 BENCH_BACKEND=${BENCH_BACKEND:-}
 BENCH_ENDPOINT=${BENCH_ENDPOINT:-}
 BENCH_USE_EXPLICIT_TOKENIZER=${BENCH_USE_EXPLICIT_TOKENIZER:-0}
@@ -290,7 +291,99 @@ derive_default_cpu_visible_memory_nodes() {
     echo "${nodes}"
 }
 
+case_list_is_json() {
+    [[ "${CASE_LIST_XLSX,,}" == *.json ]]
+}
+
+resolve_case_list_json_output() {
+    if ! case_list_is_json; then
+        return
+    fi
+
+    if [[ -z "${CASE_LIST_JSON_OUTPUT}" ]]; then
+        CASE_LIST_JSON_OUTPUT="${CASE_LIST_XLSX%.json}.new.json"
+    fi
+}
+
+get_case_list_source_path() {
+    if case_list_is_json; then
+        resolve_case_list_json_output
+        if [[ "${RESUME}" == "1" && -f "${CASE_LIST_JSON_OUTPUT}" ]]; then
+            echo "${CASE_LIST_JSON_OUTPUT}"
+            return
+        fi
+    fi
+
+    echo "${CASE_LIST_XLSX}"
+}
+
 iter_case_list() {
+    if case_list_is_json; then
+        python3 - "$(get_case_list_source_path)" "${CASE_LIST_MODEL_FILTER}" <<'PY'
+import json
+import sys
+
+FIELD_SEP = "\x1f"
+
+path, model_filter = sys.argv[1], sys.argv[2].strip()
+with open(path, encoding="utf-8") as handle:
+    rows = json.load(handle)
+
+def as_enabled(value):
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    return str(value).strip().upper() == "TRUE"
+
+def as_int(value, default=1):
+    if value in (None, ""):
+        return default
+    return int(value)
+
+def as_text(value):
+    if value in (None, ""):
+        return ""
+    return str(value).strip()
+
+allowed_models = {item.strip() for item in model_filter.split(",") if item.strip()}
+
+for row_idx, row in enumerate(rows, start=1):
+    if not as_enabled(row.get("enabled")):
+        continue
+    model = as_text(row.get("model_id"))
+    if not model:
+        continue
+    if allowed_models and model not in allowed_models:
+        continue
+    tp = as_int(row.get("tp"))
+    pp = as_int(row.get("pp"))
+    dp = as_int(row.get("dp"))
+    dp_mode = row.get("dp_mode")
+    if dp_mode in (None, ""):
+        dp_mode = "router_dp" if dp > 1 else "none"
+    else:
+        dp_mode = str(dp_mode).strip()
+    extra_args = as_text(row.get("extra_args"))
+    last_status = as_text(row.get("last_status"))
+    c_recommended = as_text(row.get("c_recommended"))
+    c_regular = as_text(row.get("c_regular"))
+    print(FIELD_SEP.join([
+        str(row_idx),
+        model,
+        str(tp),
+        str(pp),
+        str(dp),
+        dp_mode,
+        extra_args,
+        last_status,
+        c_recommended,
+        c_regular,
+    ]))
+PY
+        return
+    fi
+
     python3 - "${CASE_LIST_XLSX}" "${CASE_LIST_SHEET}" "${CASE_LIST_MODEL_FILTER}" <<'PY'
 import sys
 from openpyxl import load_workbook
@@ -321,6 +414,8 @@ def as_text(value):
         return ""
     return str(value).strip()
 
+allowed_models = {item.strip() for item in model_filter.split(",") if item.strip()}
+
 for row_idx in range(2, ws.max_row + 1):
     enabled = ws.cell(row=row_idx, column=1).value
     if not as_enabled(enabled):
@@ -329,7 +424,7 @@ for row_idx in range(2, ws.max_row + 1):
     if model in (None, ""):
         continue
     model = str(model).strip()
-    if model_filter and model != model_filter:
+    if allowed_models and model not in allowed_models:
         continue
     tp = as_int(ws.cell(row=row_idx, column=5).value)
     pp = as_int(ws.cell(row=row_idx, column=6).value)
@@ -364,6 +459,38 @@ PY
 }
 
 ensure_case_list_result_columns() {
+    if case_list_is_json; then
+        resolve_case_list_json_output
+        python3 - "${CASE_LIST_XLSX}" "${CASE_LIST_JSON_OUTPUT}" "${RESUME}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+input_path = Path(sys.argv[1])
+output_path = Path(sys.argv[2])
+resume = sys.argv[3] == "1"
+
+source_path = output_path if resume and output_path.exists() else input_path
+with open(source_path, encoding="utf-8") as handle:
+    rows = json.load(handle)
+
+for row in rows:
+    if not isinstance(row, dict):
+        continue
+    row.setdefault("c_recommended", None)
+    row.setdefault("c_regular", None)
+    row.setdefault("last_throughput", None)
+    row.setdefault("last_ttft_ms", None)
+    row.setdefault("last_tpot_ms", None)
+
+output_path.parent.mkdir(parents=True, exist_ok=True)
+with open(output_path, "w", encoding="utf-8") as handle:
+    json.dump(rows, handle, indent=2, ensure_ascii=False)
+    handle.write("\n")
+PY
+        return
+    fi
+
     python3 - "${CASE_LIST_XLSX}" "${CASE_LIST_SHEET}" <<'PY'
 import sys
 from openpyxl import load_workbook
@@ -395,6 +522,50 @@ write_case_list_result() {
     local last_throughput_value="$6"
     local last_ttft_value="$7"
     local last_tpot_value="$8"
+
+    if case_list_is_json; then
+        resolve_case_list_json_output
+        python3 - "${CASE_LIST_JSON_OUTPUT}" "${row_idx}" "${status_value}" "${notes_value}" "${c_recommended_value}" "${c_regular_value}" "${last_throughput_value}" "${last_ttft_value}" "${last_tpot_value}" <<'PY'
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+(
+    path,
+    row_idx,
+    status_value,
+    notes_value,
+    c_recommended_value,
+    c_regular_value,
+    last_throughput_value,
+    last_ttft_value,
+    last_tpot_value,
+) = sys.argv[1:10]
+
+row_idx = int(row_idx) - 1
+manifest_path = Path(path)
+with open(manifest_path, encoding="utf-8") as handle:
+    rows = json.load(handle)
+
+row = rows[row_idx]
+timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+row["last_run_at"] = timestamp
+row["last_status"] = status_value
+row["notes"] = notes_value
+row["c_recommended"] = int(c_recommended_value) if c_recommended_value.strip() else None
+row["c_regular"] = int(c_regular_value) if c_regular_value.strip() else None
+row["last_batch_size"] = int(c_regular_value) if c_regular_value.strip() else None
+row["last_throughput"] = float(last_throughput_value) if last_throughput_value.strip() else None
+row["last_ttft_ms"] = float(last_ttft_value) if last_ttft_value.strip() else None
+row["last_tpot_ms"] = float(last_tpot_value) if last_tpot_value.strip() else None
+
+with open(manifest_path, "w", encoding="utf-8") as handle:
+    json.dump(rows, handle, indent=2, ensure_ascii=False)
+    handle.write("\n")
+PY
+        return
+    fi
 
     python3 - "${CASE_LIST_XLSX}" "${CASE_LIST_SHEET}" "${row_idx}" "${status_value}" "${notes_value}" "${c_recommended_value}" "${c_regular_value}" "${last_throughput_value}" "${last_ttft_value}" "${last_tpot_value}" <<'PY'
 import sys
@@ -479,9 +650,11 @@ run_case_list() {
     local case_output_log result_marker_line marker_model marker_c_recommended marker_c_regular marker_recommendation
     local marker_last_throughput marker_last_ttft marker_last_tpot
     local failure_note
+    local case_list_source_path
 
-    if [[ ! -f "${CASE_LIST_XLSX}" ]]; then
-        echo "ERROR: case list workbook not found: ${CASE_LIST_XLSX}" >&2
+    case_list_source_path="$(get_case_list_source_path)"
+    if [[ ! -f "${case_list_source_path}" ]]; then
+        echo "ERROR: case list manifest not found: ${case_list_source_path}" >&2
         exit 1
     fi
 
@@ -536,7 +709,11 @@ run_case_list() {
 
             IFS='|' read -r _ marker_model marker_c_recommended marker_c_regular marker_recommendation marker_last_throughput marker_last_ttft marker_last_tpot <<< "${result_marker_line}"
             write_case_list_result "${row_idx}" "PASS" "run_logs_dir=${case_log_dir}; recommendation=${marker_recommendation}; wrapper_log=${case_output_log}" "${marker_c_recommended}" "${marker_c_regular}" "${marker_last_throughput}" "${marker_last_ttft}" "${marker_last_tpot}"
-            echo "Updated sheet row=${row_idx} model=${marker_model} c_recommended=${marker_c_recommended} c_regular=${marker_c_regular} throughput=${marker_last_throughput} ttft_ms=${marker_last_ttft} tpot_ms=${marker_last_tpot}"
+            if case_list_is_json; then
+                echo "Updated json row=${row_idx} model=${marker_model} c_recommended=${marker_c_recommended} c_regular=${marker_c_regular} throughput=${marker_last_throughput} ttft_ms=${marker_last_ttft} tpot_ms=${marker_last_tpot} output=${CASE_LIST_JSON_OUTPUT}"
+            else
+                echo "Updated sheet row=${row_idx} model=${marker_model} c_recommended=${marker_c_recommended} c_regular=${marker_c_regular} throughput=${marker_last_throughput} ttft_ms=${marker_last_ttft} tpot_ms=${marker_last_tpot}"
+            fi
             echo "Recommendation file: ${marker_recommendation}"
         else
             failure_note="run_logs_dir=${case_log_dir}; wrapper_log=${case_output_log}; failure_context=${case_log_dir}/${case_run_tag}_failure_context.log; server_failure_snapshot=${case_log_dir}/${case_run_tag}_server_failure_snapshot.log"

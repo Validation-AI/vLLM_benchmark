@@ -19,7 +19,7 @@ on:
         default: vllm/vllm-openai-cpu:v0.24.0
         type: string
       case_list_xlsx:
-        description: Workbook path relative to repo root
+        description: Manifest path relative to repo root (.xlsx or .json)
         required: false
         default: automation/manifests/serving_tuning/automation_v0.xlsx
         type: string
@@ -39,7 +39,7 @@ on:
         default: false
         type: boolean
       model:
-        description: Optional exact model_id filter applied to the workbook rows
+        description: Optional model_id filter; supports a single model or a comma-separated list
         required: false
         default: ''
         type: string
@@ -111,27 +111,37 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          workbook_path="${WORKSPACE}/${{ inputs.case_list_xlsx }}"
+          manifest_path="${WORKSPACE}/${{ inputs.case_list_xlsx }}"
           sheet_name='${{ inputs.case_list_sheet }}'
 
-          echo "Validating workbook: ${workbook_path}"
-          python3 - "${workbook_path}" "${sheet_name}" <<'PY'
+          echo "Validating manifest: ${manifest_path}"
+          python3 - "${manifest_path}" "${sheet_name}" <<'PY'
           import sys
+          import json
           from pathlib import Path
           from openpyxl import load_workbook
 
-          workbook_path = Path(sys.argv[1])
+          manifest_path = Path(sys.argv[1])
           sheet_name = sys.argv[2]
 
-          if not workbook_path.exists():
-            raise SystemExit(f"Workbook not found: {workbook_path}")
+          if not manifest_path.exists():
+            raise SystemExit(f"Manifest not found: {manifest_path}")
 
-          wb = load_workbook(workbook_path, read_only=True)
+          if manifest_path.suffix.lower() == ".json":
+            with open(manifest_path, encoding="utf-8") as handle:
+              rows = json.load(handle)
+            print(f"Manifest OK: {manifest_path}")
+            print("Format: json")
+            print(f"Rows: {len(rows)}")
+            raise SystemExit(0)
+
+          wb = load_workbook(manifest_path, read_only=True)
           if sheet_name not in wb.sheetnames:
             raise SystemExit(f"Sheet not found: {sheet_name}; available={wb.sheetnames}")
 
           ws = wb[sheet_name]
-          print(f"Workbook OK: {workbook_path}")
+          print(f"Manifest OK: {manifest_path}")
+          print("Format: xlsx")
           print(f"Sheet OK: {sheet_name}")
           print(f"Dimensions: rows={ws.max_row} cols={ws.max_column}")
           PY
@@ -161,7 +171,7 @@ jobs:
           echo "Node label: ${NODE_LABEL}"
           echo "Workspace: ${WORKSPACE}"
           echo "Image: ${IMAGE}"
-          echo "Case list workbook: ${CASE_LIST_XLSX}"
+          echo "Case list manifest: ${CASE_LIST_XLSX}"
           echo "Case-list model filter: ${CASE_LIST_MODEL_FILTER}"
 
           bash "${WORKSPACE}/scripts/sweep/get_C_regular.sh"
