@@ -38,6 +38,7 @@ export no_proxy=".intel.com,127.0.0.1,localhost,${address}"
 
 max_batch_size=${TUNING_MAX_BATCH_SIZE:-4096}
 persisted_batch_size=${BATCH_SIZE:-${TUNING_PERSISTED_BATCH_SIZE:-}}
+bs_ratio=${BS_RATIO:-5}
 tuning_failure_log_tail_lines=${TUNING_FAILURE_LOG_TAIL_LINES:-120}
 enable_cpu_monitor=$(echo "${ENABLE_CPU_MONITOR:-false}" | tr '[:upper:]' '[:lower:]')
 cpu_monitor_scope=${CPU_MONITOR_SCOPE:-both}
@@ -303,7 +304,7 @@ if (( persisted_batch_size <= 0 )); then
     exit 0
 fi
 # batch_size=$((persisted_batch_size * 5))
-batch_size=$((persisted_batch_size))
+batch_size=$((persisted_batch_size * bs_ratio))
 #if (( persisted_batch_size * 5 > max_batch_size )); then
 #    echo "Requested batch_size=$((persisted_batch_size * 5)) exceeds max_batch_size=${max_batch_size}; clamping."
 #    batch_size=$((max_batch_size))

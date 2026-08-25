@@ -77,6 +77,11 @@ on:
         required: false
         default: default
         type: string
+      bs_ratio:
+        description: "Multiplier applied to the persisted batch size in perf_fixed_batch_vllm.sh (batch_size = persisted_batch_size * bs_ratio)."
+        required: false
+        default: "5"
+        type: string
       tp_backbone:
         required: false
         default: mp
@@ -123,6 +128,7 @@ jobs:
       OPENAI_API_BASE: ${{ inputs.openai_api_base }}
       LENGTH_CONFIGS: ${{ inputs.length_configs }}
       MAX_CONCURRENCY: ${{ inputs.max_concurrency }}
+      BS_RATIO: ${{ inputs.bs_ratio }}
       TP_BACKBONE: ${{ inputs.tp_backbone }}
       ROW_FILTER: ${{ inputs.row_filter }}
       SESSION_ID: ${{ inputs.session_id }}
@@ -180,6 +186,7 @@ jobs:
           echo "openai_api_base          = ${OPENAI_API_BASE}"
           echo "length_configs           = ${LENGTH_CONFIGS}"
           echo "max_concurrency          = ${MAX_CONCURRENCY}"
+          echo "bs_ratio                 = ${BS_RATIO}"
           echo "tp_backbone              = ${TP_BACKBONE}"
           echo "row_filter               = ${ROW_FILTER}"
           echo "session_id (input)       = ${SESSION_ID:-<auto: run number>}"
@@ -553,6 +560,7 @@ jobs:
                 -e BENCH_NUM_WARMUPS="${last_batch_size:-200}"
                 -e BENCH_TEMPERATURE=0
                 -e tp_backbone="${TP_BACKBONE}"
+                -e BS_RATIO="${BS_RATIO}"
                 -e HF_TOKEN_FOR_SCRIPT="${HF_TOKEN_FOR_SCRIPT}"
                 -e ROW_SERVER_LOG="${server_log}"
                 -e ROW_ID="${row_id}"
