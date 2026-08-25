@@ -48,6 +48,7 @@ CASE_LIST_SHEET=${CASE_LIST_SHEET:-serving_tuning}
 CASE_LIST_MODEL_FILTER=${CASE_LIST_MODEL_FILTER:-}
 BENCH_BACKEND=${BENCH_BACKEND:-}
 BENCH_ENDPOINT=${BENCH_ENDPOINT:-}
+BENCH_USE_EXPLICIT_TOKENIZER=${BENCH_USE_EXPLICIT_TOKENIZER:-0}
 
 if [[ "${VALIDATE_OUTPUT_LAYOUT_ONLY}" != "1" && -z "${HF_TOKEN_FOR_SCRIPT:-}" ]]; then
     echo "ERROR: HF_TOKEN_FOR_SCRIPT is not set." >&2
@@ -80,8 +81,35 @@ resolve_benchmark_transport() {
         return
     fi
 
-    BENCH_BACKEND=${BENCH_BACKEND:-openai}
-    BENCH_ENDPOINT=${BENCH_ENDPOINT:-/v1/completions}
+    BENCH_BACKEND=${BENCH_BACKEND:-vllm}
+    if [[ -z "${BENCH_ENDPOINT}" ]]; then
+        case "${BENCH_BACKEND}" in
+            openai)
+                BENCH_ENDPOINT='/v1/completions'
+                ;;
+            openai-chat)
+                BENCH_ENDPOINT='/v1/chat/completions'
+                ;;
+            openai-audio)
+                BENCH_ENDPOINT='/v1/audio/transcriptions'
+                ;;
+            *)
+                BENCH_ENDPOINT=''
+                ;;
+        esac
+    fi
+}
+
+should_use_explicit_tokenizer() {
+    if [[ "${BENCH_USE_EXPLICIT_TOKENIZER}" == "1" ]]; then
+        return 0
+    fi
+
+    if [[ -n "${TOKENIZER_PATH}" ]]; then
+        return 0
+    fi
+
+    return 1
 }
 
 phase_records_point_elapsed() {
@@ -1759,28 +1787,35 @@ run_client_once() {
     local client_inner_command
 
     client_inner_command=$(cat <<EOF
-BENCH_TOKENIZER='${TOKENIZER_PATH}'
-if [[ -z "\${BENCH_TOKENIZER}" || ! -d "\${BENCH_TOKENIZER}" ]]; then
-    echo 'WARNING: tokenizer path is not visible inside client container: ${TOKENIZER_PATH}; falling back to tokenizer name ${BENCH_MODEL}' >&2
-    BENCH_TOKENIZER='${BENCH_MODEL}'
-fi
-vllm bench serve \
-    --backend '${BENCH_BACKEND}' \
-    --endpoint '${BENCH_ENDPOINT}' \
-    --model '${BENCH_MODEL}' \
-    --tokenizer "\${BENCH_TOKENIZER}" \
-    --dataset-name random \
-    --random-input-len ${LENGTH_IN} \
-    --random-output-len ${LENGTH_OUT} \
-    --ignore-eos \
-    --trust-remote-code \
-    --num-prompt ${num_prompt} \
-    --num-warmups ${num_warmups} \
-    --request-rate ${request_rate} \
-    --port 8000 \
-    --host 127.0.0.1 \
-    --max-concurrency ${max_concurrency} \
+BENCH_CMD=(
+    vllm bench serve
+    --backend '${BENCH_BACKEND}'
+    --model '${BENCH_MODEL}'
+    --dataset-name random
+    --random-input-len ${LENGTH_IN}
+    --random-output-len ${LENGTH_OUT}
+    --ignore-eos
+    --trust-remote-code
+    --num-prompt ${num_prompt}
+    --num-warmups ${num_warmups}
+    --request-rate ${request_rate}
+    --port 8000
+    --host 127.0.0.1
+    --max-concurrency ${max_concurrency}
     --temperature 0
+)
+if [[ -n '${BENCH_ENDPOINT}' ]]; then
+    BENCH_CMD+=(--endpoint '${BENCH_ENDPOINT}')
+fi
+if [[ '${BENCH_USE_EXPLICIT_TOKENIZER}' == '1' || -n '${TOKENIZER_PATH}' ]]; then
+    BENCH_TOKENIZER='${TOKENIZER_PATH}'
+    if [[ -z "\${BENCH_TOKENIZER}" || ! -d "\${BENCH_TOKENIZER}" ]]; then
+        echo 'WARNING: tokenizer path is not visible inside client container: ${TOKENIZER_PATH}; falling back to tokenizer name ${BENCH_MODEL}' >&2
+        BENCH_TOKENIZER='${BENCH_MODEL}'
+    fi
+    BENCH_CMD+=(--tokenizer "\${BENCH_TOKENIZER}")
+fi
+"\${BENCH_CMD[@]}"
 EOF
 )
 
@@ -2042,11 +2077,21 @@ restart_server_for_phase() {
     fi
     wait_for_server_ready
 
-    if [[ -n "${TOKENIZER_PATH}" ]]; then
-        echo "Tokenizer path remains: ${TOKENIZER_PATH}"
+    if should_use_explicit_tokenizer; then
+        if [[ -n "${TOKENIZER_PATH}" ]]; then
+            echo "Tokenizer path remains: ${TOKENIZER_PATH}"
+        fi
     fi
 
     capture_startup_server_logs "${LOG_FILE_PREFIX}_${phase}_server_startup.log"
+}
+
+prepare_benchmark_tokenizer() {
+    if ! should_use_explicit_tokenizer; then
+        return
+    fi
+
+    resolve_tokenizer_path
 }
 
 run_exponential_sweep() {
@@ -2237,18 +2282,22 @@ trap 'capture_failure_snapshot "$?" "$LINENO" "$BASH_COMMAND"' ERR
 trap 'exit_code=$?; handle_exit "${exit_code}"' EXIT
 
 if load_existing_probe_state; then
-    resolve_tokenizer_path
+    prepare_benchmark_tokenizer
 else
     restart_server_for_phase initial_probe ''
-    resolve_tokenizer_path
+    prepare_benchmark_tokenizer
 
-    echo "Using tokenizer path: ${TOKENIZER_PATH}"
+    if [[ -n "${TOKENIZER_PATH}" ]]; then
+        echo "Using tokenizer path: ${TOKENIZER_PATH}"
+    fi
     echo "Using benchmark model: ${BENCH_MODEL}"
 
     run_probe_and_derive_upper_limit
 fi
 
-echo "Using tokenizer path: ${TOKENIZER_PATH}"
+if [[ -n "${TOKENIZER_PATH}" ]]; then
+    echo "Using tokenizer path: ${TOKENIZER_PATH}"
+fi
 echo "Using benchmark model: ${BENCH_MODEL}"
 
 # The probe run establishes the KV-cache-derived upper limit.
