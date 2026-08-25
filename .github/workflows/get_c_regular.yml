@@ -77,6 +77,8 @@ jobs:
       HF_TOKEN_FOR_SCRIPT: ${{ secrets.HF_TOKEN }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          lfs: true
 
       - name: Validate secret
         shell: bash
@@ -106,6 +108,35 @@ jobs:
       - name: Install Python dependency
         shell: bash
         run: python3 -m pip install --user --quiet openpyxl
+
+      - name: Validate workbook input
+        shell: bash
+        run: |
+          set -euo pipefail
+          workbook_path="${WORKSPACE}/${{ inputs.case_list_xlsx }}"
+          sheet_name='${{ inputs.case_list_sheet }}'
+
+          echo "Validating workbook: ${workbook_path}"
+          python3 - "${workbook_path}" "${sheet_name}" <<'PY'
+          import sys
+          from pathlib import Path
+          from openpyxl import load_workbook
+
+          workbook_path = Path(sys.argv[1])
+          sheet_name = sys.argv[2]
+
+          if not workbook_path.exists():
+            raise SystemExit(f"Workbook not found: {workbook_path}")
+
+          wb = load_workbook(workbook_path, read_only=True)
+          if sheet_name not in wb.sheetnames:
+            raise SystemExit(f"Sheet not found: {sheet_name}; available={wb.sheetnames}")
+
+          ws = wb[sheet_name]
+          print(f"Workbook OK: {workbook_path}")
+          print(f"Sheet OK: {sheet_name}")
+          print(f"Dimensions: rows={ws.max_row} cols={ws.max_column}")
+          PY
 
       - name: Run get_C_regular
         shell: bash
