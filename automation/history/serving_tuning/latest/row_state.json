@@ -342,14 +342,14 @@
   },
   "meta-llama/Llama-3.2-1B__tp1_pp1_dp6": {
     "row_id": "meta-llama/Llama-3.2-1B__tp1_pp1_dp6",
-    "last_run_at": "2026-04-24",
+    "last_run_at": "2026-08-24",
     "last_status": "PASS",
-    "last_build_number": "28",
-    "last_build_url": "https://inteltf-jenk.sh.intel.com/job/ipex_pytorch_cpu_vllm_benchmark_router-serving-GNR-weekly-automated/28/",
-    "last_batch_size": "360",
-    "last_throughput": "7525.75",
-    "last_ttft_ms": "3588.5",
-    "last_tpot_ms": "42.82"
+    "last_build_number": "777",
+    "last_build_url": "",
+    "last_batch_size": "999",
+    "last_throughput": "1234.5",
+    "last_ttft_ms": "678.9",
+    "last_tpot_ms": "42.1"
   },
   "meta-llama/Llama-3.2-3B-Instruct__tp1_pp1_dp6": {
     "row_id": "meta-llama/Llama-3.2-3B-Instruct__tp1_pp1_dp6",

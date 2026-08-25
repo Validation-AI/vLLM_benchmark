@@ -21,6 +21,14 @@ on:
         type: choice
         options:
           - serving_tuning
+      manifest_format:
+        description: "Manifest source to read the model matrix from: excel (automation_v1.xlsx) or json (automation_v1.json)."
+        required: false
+        default: json
+        type: choice
+        options:
+          - excel
+          - json
       engine_type:
         required: false
         default: v1
@@ -99,6 +107,7 @@ jobs:
       NODE_LABEL: "${{ inputs.node_label }}"
       DEFAULT_DTYPE: ${{ inputs.default_dtype }}
       BENCHMARK_SCRIPT: ${{ inputs.benchmark_script }}
+      MANIFEST_FORMAT: ${{ inputs.manifest_format }}
       ENGINE_TYPE: ${{ inputs.engine_type }}
       HARDWARE: ${{ inputs.hardware }}
       BASE_EXTRA_ARGS: ${{ inputs.base_extra_args }}
@@ -155,6 +164,7 @@ jobs:
           echo "node_label               = ${NODE_LABEL}"
           echo "default_dtype            = ${DEFAULT_DTYPE}"
           echo "benchmark_script         = ${BENCHMARK_SCRIPT}"
+          echo "manifest_format          = ${MANIFEST_FORMAT}"
           echo "engine_type              = ${ENGINE_TYPE}"
           echo "hardware                 = ${HARDWARE}"
           echo "device                   = ${DEVICE}"
@@ -313,14 +323,21 @@ jobs:
           }
 
           docker_image="vllm/vllm-openai-cpu:${DOCKER_NAME}"
+          manifest_format="${MANIFEST_FORMAT:-excel}"
           workbook_path="${WORKSPACE}/automation_v1.xlsx"
+          json_manifest_path="${WORKSPACE}/automation_v1.json"
           sheet_name="serving_tuning"
           rows_json="${WORKSPACE}/automation/generated/serving_tuning_rows.json"
           state_file="${WORKSPACE}/automation/history/serving_tuning/latest/row_state.json"
           legacy_state_file="${WORKSPACE}/automation/generated/writeback_state.json"
 
-          if ! [[ -f "${workbook_path}" ]]; then
-            echo "Manifest workbook not found: ${workbook_path}"
+          if [[ "${manifest_format}" == "json" ]]; then
+            manifest_path="${json_manifest_path}"
+          else
+            manifest_path="${workbook_path}"
+          fi
+          if ! [[ -f "${manifest_path}" ]]; then
+            echo "Manifest ${manifest_format} file not found: ${manifest_path}"
             exit 1
           fi
 
@@ -353,7 +370,11 @@ jobs:
           # multi-model --row-filter) are passed verbatim. The previous
           # printf '%q' inside an unquoted $() escaped commas as "\," and broke
           # the model list, so only the last model was matched.
-          read_manifest_args=(--xlsx "${workbook_path}" --sheet "${sheet_name}" --output "${rows_json}")
+          if [[ "${manifest_format}" == "json" ]]; then
+            read_manifest_args=(--input-format json --json "${manifest_path}" --output "${rows_json}")
+          else
+            read_manifest_args=(--input-format excel --xlsx "${manifest_path}" --sheet "${sheet_name}" --output "${rows_json}")
+          fi
           if [[ -f "${state_file}" ]]; then
             read_manifest_args+=(--state-file "${state_file}")
           elif [[ -f "${legacy_state_file}" ]]; then
@@ -592,16 +613,27 @@ jobs:
             --runs-snapshot-dir "${WORKSPACE}/runs" \
             --build-number "${BUILD_NUMBER}" || echo "compile_serving_tuning_results failed (non-fatal)"
 
+          # Write results back into whichever manifest format was selected.
+          if [[ "${MANIFEST_FORMAT:-excel}" == "json" ]]; then
+            writeback_manifest_args=(--input-format json --json "${WORKSPACE}/automation_v1.json")
+          else
+            writeback_manifest_args=(--input-format excel --xlsx "${WORKSPACE}/automation_v1.xlsx")
+          fi
           python3 "${WORKSPACE}/automation/writeback_results.py" \
             --results-csv "${WORKSPACE}/logs/serving_tuning_results.csv" \
-            --xlsx "${WORKSPACE}/automation_v1.xlsx" \
+            "${writeback_manifest_args[@]}" \
             --build-number "${BUILD_NUMBER}" \
             --runs-dir "${WORKSPACE}/runs" || echo "writeback_results failed (non-fatal)"
 
-          # Echo the results so they are visible without downloading artifacts.
-          echo "=== serving_tuning_results.csv ==="
-          if [[ -f "${WORKSPACE}/logs/serving_tuning_results.csv" ]]; then
-            cat "${WORKSPACE}/logs/serving_tuning_results.csv"
+          # Render results readably: aligned table in the log and a markdown
+          # table in the run summary, so no artifact download is needed.
+          csv_path="${WORKSPACE}/logs/serving_tuning_results.csv"
+          echo "=== serving_tuning_results ==="
+          if [[ -f "${csv_path}" ]]; then
+            python3 -c 'import csv,sys; [sys.stdout.write("\t".join(row)+"\n") for row in csv.reader(open(sys.argv[1], newline=""))]' "${csv_path}" | column -t -s $'\t'
+            if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+              python3 -c 'import csv,sys; rows=list(csv.reader(open(sys.argv[1], newline=""))); print("## serving_tuning_results\n"); (print("| "+" | ".join(rows[0])+" |"), print("|"+"|".join([" --- "]*len(rows[0]))+"|"), [print("| "+" | ".join(r)+" |") for r in rows[1:]]) if rows else print("(empty)")' "${csv_path}" >> "${GITHUB_STEP_SUMMARY}"
+            fi
           else
             echo "(serving_tuning_results.csv not found)"
           fi

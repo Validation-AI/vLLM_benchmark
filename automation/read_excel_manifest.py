@@ -114,6 +114,40 @@ def resolve_row(raw):
     }
 
 
+def read_rows_from_excel(xlsx_path, sheet_name):
+    """Return raw header->value dicts from a workbook sheet."""
+    wb = load_workbook(Path(xlsx_path), data_only=True)
+    ws = wb[sheet_name]
+    headers = [cell.value for cell in next(ws.iter_rows(min_row=1, max_row=1))]
+    rows = []
+    for values in ws.iter_rows(min_row=2, values_only=True):
+        if not any(value is not None and value != "" for value in values):
+            continue
+        rows.append(row_to_dict(headers, values))
+    return rows
+
+
+def read_rows_from_json(json_path):
+    """Return raw row dicts from a JSON manifest.
+
+    Accepts either a top-level list of row objects or a dict wrapping the list
+    under a "rows", "serving_tuning", or "data" key.
+    """
+    with Path(json_path).open("r", encoding="utf-8") as f:
+        data = json.load(f)
+    if isinstance(data, dict):
+        for key in ("rows", "serving_tuning", "data"):
+            value = data.get(key)
+            if isinstance(value, list):
+                data = value
+                break
+        else:
+            data = [data]
+    if not isinstance(data, list):
+        raise ValueError(f"{json_path}: expected a list of row objects")
+    return data
+
+
 def load_state_history(state_file):
     if not state_file:
         return {}
@@ -140,9 +174,16 @@ def merge_row_history(row, state_history):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Read serving_tuning workbook rows into JSON.")
-    parser.add_argument("--xlsx", required=True, help="Path to workbook")
-    parser.add_argument("--sheet", default="serving_tuning", help="Worksheet name")
+    parser = argparse.ArgumentParser(description="Read serving_tuning manifest rows into JSON.")
+    parser.add_argument("--xlsx", help="Path to workbook (Excel input)")
+    parser.add_argument("--json", help="Path to JSON manifest (JSON input)")
+    parser.add_argument(
+        "--input-format",
+        choices=["auto", "excel", "json"],
+        default="auto",
+        help="Manifest source format. 'auto' picks json if --json is set, else excel.",
+    )
+    parser.add_argument("--sheet", default="serving_tuning", help="Worksheet name (Excel input)")
     parser.add_argument("--output", required=True, help="Output JSON path")
     parser.add_argument("--row-filter", default="", help="Comma-separated model_id list")
     parser.add_argument("--include-disabled", action="store_true", help="Include disabled rows")
@@ -154,20 +195,32 @@ def parse_args():
     return parser.parse_args()
 
 
+def resolve_input_format(args):
+    if args.input_format != "auto":
+        return args.input_format
+    if args.json:
+        return "json"
+    if args.xlsx:
+        return "excel"
+    raise SystemExit("No manifest input given: provide --xlsx or --json.")
+
+
 def main():
     args = parse_args()
-    xlsx_path = Path(args.xlsx)
-    wb = load_workbook(xlsx_path, data_only=True)
-    ws = wb[args.sheet]
-    headers = [cell.value for cell in next(ws.iter_rows(min_row=1, max_row=1))]
+    input_format = resolve_input_format(args)
+    if input_format == "json":
+        if not args.json:
+            raise SystemExit("--input-format json requires --json PATH")
+        raw_rows = read_rows_from_json(args.json)
+    else:
+        if not args.xlsx:
+            raise SystemExit("--input-format excel requires --xlsx PATH")
+        raw_rows = read_rows_from_excel(args.xlsx, args.sheet)
     # state_history = load_state_history(args.state_file.strip())
     allowed_models = {item.strip() for item in args.row_filter.split(",") if item.strip()}
     rows = []
     # count = 0
-    for values in ws.iter_rows(min_row=2, values_only=True):
-        if not any(value is not None and value != "" for value in values):
-            continue
-        raw = row_to_dict(headers, values)
+    for raw in raw_rows:
         row = resolve_row(raw)
         #row = merge_row_history(row, state_history)
         print(row)

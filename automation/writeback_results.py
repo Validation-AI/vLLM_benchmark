@@ -134,6 +134,53 @@ def writeback_xlsx(xlsx_path: Path, results: dict[str, dict], build_number: str,
     print(f"  Wrote back {updated} rows into {xlsx_path}")
 
 
+def writeback_json(json_path: Path, results: dict[str, dict], build_number: str, today_str: str):
+    with json_path.open(encoding="utf-8") as f:
+        data = json.load(f)
+
+    # Accept a top-level list or a dict wrapping the rows (matches the reader).
+    rows = data
+    if isinstance(data, dict):
+        for key in ("rows", "serving_tuning", "data"):
+            if isinstance(data.get(key), list):
+                rows = data[key]
+                break
+        else:
+            rows = [data]
+    if not isinstance(rows, list):
+        print(f"WARNING: {json_path} is not a list of rows, skipping json write-back")
+        return
+
+    updated = 0
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        model_id = str(row.get("model_id") or "").strip()
+        if not model_id:
+            continue
+        row_id = _derive_row_id(
+            model_id,
+            str(row.get("tp") or "").strip(),
+            str(row.get("pp") or "").strip(),
+            str(row.get("dp") or "").strip(),
+        )
+        result = results.get(row_id)
+        if result is None:
+            continue
+        row["last_run_at"]       = today_str
+        row["last_status"]       = result.get("status", "")
+        row["last_build_number"] = build_number
+        row["last_batch_size"]   = result.get("best_batch_size", "")
+        row["last_throughput"]   = result.get("throughput", "")
+        row["last_ttft_ms"]      = result.get("ttft_ms", "")
+        row["last_tpot_ms"]      = result.get("tpot_ms", "")
+        updated += 1
+
+    with json_path.open("w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=True)
+    print(f"  Wrote back {updated} rows into {json_path}")
+
+
 # ---------------------------------------------------------------------------
 # State file (used by trigger_jenkins.py for staleness checks)
 # ---------------------------------------------------------------------------
@@ -188,7 +235,14 @@ def save_runs_snapshot(runs_dir: Path, results: dict[str, dict], build_number: s
 def parse_args():
     p = argparse.ArgumentParser(description="Write Jenkins run results back into the manifest.")
     p.add_argument("--results-csv",   required=True,  help="Path to logs/serving_tuning_results.csv")
-    p.add_argument("--xlsx",          required=True,  help="Path to automation_v0.xlsx")
+    p.add_argument("--xlsx",          default="",     help="Path to manifest xlsx (Excel write-back)")
+    p.add_argument("--json",          default="",     help="Path to manifest json (JSON write-back)")
+    p.add_argument(
+        "--input-format",
+        choices=["auto", "excel", "json"],
+        default="auto",
+        help="Manifest format to write back. 'auto' picks json if --json is set, else excel.",
+    )
     p.add_argument("--build-number",  required=True,  help="Jenkins build number")
     p.add_argument("--build-url",     default="",     help="Jenkins build URL")
     p.add_argument("--state-file",    default="",     help="Optional compatibility mirror for the legacy state file path")
@@ -196,18 +250,36 @@ def parse_args():
     return p.parse_args()
 
 
+def resolve_input_format(args):
+    if args.input_format != "auto":
+        return args.input_format
+    if args.json:
+        return "json"
+    if args.xlsx:
+        return "excel"
+    sys.exit("ERROR: no manifest target given: provide --xlsx or --json.")
+
+
 def main():
     args = parse_args()
+    input_format = resolve_input_format(args)
     csv_path  = Path(args.results_csv)
-    xlsx_path = Path(args.xlsx)
     today_str = date.today().isoformat()
     build_number = str(args.build_number)
     build_url    = args.build_url
 
     if not csv_path.exists():
         sys.exit(f"ERROR: results CSV not found: {csv_path}")
-    if not xlsx_path.exists():
-        sys.exit(f"ERROR: manifest not found: {xlsx_path}")
+    if input_format == "json":
+        if not args.json:
+            sys.exit("ERROR: --input-format json requires --json PATH")
+        manifest_path = Path(args.json)
+    else:
+        if not args.xlsx:
+            sys.exit("ERROR: --input-format excel requires --xlsx PATH")
+        manifest_path = Path(args.xlsx)
+    if not manifest_path.exists():
+        sys.exit(f"ERROR: manifest not found: {manifest_path}")
 
     workspace = workspace_root()
     canonical_state_path = latest_state_path(workspace)
@@ -227,8 +299,11 @@ def main():
         print(f"  {row_id}: status={r.get('status')}  batch={r.get('best_batch_size')}  "
               f"thp={r.get('throughput')}  ttft={r.get('ttft_ms')}  tpot={r.get('tpot_ms')}")
 
-    print(f"\nUpdating manifest xlsx: {xlsx_path}")
-    writeback_xlsx(xlsx_path, results, build_number, today_str)
+    print(f"\nUpdating manifest {input_format}: {manifest_path}")
+    if input_format == "json":
+        writeback_json(manifest_path, results, build_number, today_str)
+    else:
+        writeback_xlsx(manifest_path, results, build_number, today_str)
 
     state_targets = []
     for candidate in (canonical_state_path, compatibility_state_path):
