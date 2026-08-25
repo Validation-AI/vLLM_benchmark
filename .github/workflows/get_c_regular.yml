@@ -77,8 +77,6 @@ jobs:
       HF_TOKEN_FOR_SCRIPT: ${{ secrets.HF_TOKEN }}
     steps:
       - uses: actions/checkout@v5
-        with:
-          lfs: true
 
       - name: Validate secret
         shell: bash
