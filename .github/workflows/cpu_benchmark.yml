@@ -501,18 +501,21 @@ jobs:
             if [[ -n "${VLLM_CPU_KVCACHE_SPACE}" ]]; then
               extra_envs+=(-e VLLM_CPU_KVCACHE_SPACE="${VLLM_CPU_KVCACHE_SPACE}")
             fi
-            docker run -t -d --shm-size 10g --net=host --ipc=host --privileged \
-              -e no_proxy=.intel.com,127.0.0.1,localhost \
-              "${extra_envs[@]}" \
-              -e ROUTER_STARTUP_TIMEOUT_S="${ROUTER_STARTUP_TIMEOUT_S}" \
-              -e STARTUP_DEBUG_TRACE=${STARTUP_DEBUG_TRACE:-0} \
-              -e HF_TOKEN_FOR_SCRIPT="${HF_TOKEN_FOR_SCRIPT}" \
-              -v "${hf_path}:/root/.cache/" \
-              -v "${WORKSPACE}:/workspace" \
-              --name="${container_name}" \
-              --entrypoint='' \
-              "${docker_image}" \
-              /bin/bash -c "${launch_cmd}"
+            server_docker_cmd=(docker run -t -d --shm-size 10g --net=host --ipc=host --privileged
+              -e no_proxy=.intel.com,127.0.0.1,localhost
+              "${extra_envs[@]}"
+              -e ROUTER_STARTUP_TIMEOUT_S="${ROUTER_STARTUP_TIMEOUT_S}"
+              -e STARTUP_DEBUG_TRACE=${STARTUP_DEBUG_TRACE:-0}
+              -e HF_TOKEN_FOR_SCRIPT="${HF_TOKEN_FOR_SCRIPT}"
+              -v "${hf_path}:/root/.cache/"
+              -v "${WORKSPACE}:/workspace"
+              --name="${container_name}"
+              --entrypoint=''
+              "${docker_image}"
+              /bin/bash -c "${launch_cmd}")
+            echo "=== SERVER docker command (row_id=${row_id}) ==="
+            printf '%q ' "${server_docker_cmd[@]}"; printf '\n'
+            "${server_docker_cmd[@]}"
 
             mapfile -t length_list < <(split_csv "${LENGTH_CONFIGS}" "default")
             if [[ ${#length_list[@]} -eq 0 ]]; then
@@ -574,20 +577,23 @@ jobs:
                 )
               fi
 
-              docker run --rm \
-                --shm-size 10g \
-                --net=host \
-                -v "${WORKSPACE}:/workspace1" \
-                -v "${hf_path}:/root/.cache/" \
-                -u root \
-                --privileged \
-                --entrypoint='' \
-                --env no_proxy=.intel.com \
-                -e HF_TOKEN_FOR_SCRIPT="${HF_TOKEN_FOR_SCRIPT}" \
-                --env work_space="${WORKSPACE}" \
-                "${docker_env_args[@]}" \
-                "${docker_image}" \
-                /bin/bash -lc "cd /workspace1 && bash /workspace1/perf_fixed_batch_vllm.sh"
+              client_docker_cmd=(docker run --rm
+                --shm-size 10g
+                --net=host
+                -v "${WORKSPACE}:/workspace1"
+                -v "${hf_path}:/root/.cache/"
+                -u root
+                --privileged
+                --entrypoint=''
+                --env no_proxy=.intel.com
+                -e HF_TOKEN_FOR_SCRIPT="${HF_TOKEN_FOR_SCRIPT}"
+                --env work_space="${WORKSPACE}"
+                "${docker_env_args[@]}"
+                "${docker_image}"
+                /bin/bash -lc "cd /workspace1 && bash /workspace1/perf_fixed_batch_vllm.sh")
+              echo "=== CLIENT docker command (row_id=${row_id} length=${length_config}) ==="
+              printf '%q ' "${client_docker_cmd[@]}"; printf '\n'
+              "${client_docker_cmd[@]}"
 
               if [[ -f "${host_result_path}" ]]; then
                 result_status=$(python3 -c 'import json,sys; from pathlib import Path; print(json.loads(Path(sys.argv[1]).read_text()).get("status", "MODEL_ERROR"))' "${host_result_path}")
