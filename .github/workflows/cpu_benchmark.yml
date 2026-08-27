@@ -502,6 +502,7 @@ jobs:
               extra_envs+=(-e VLLM_CPU_KVCACHE_SPACE="${VLLM_CPU_KVCACHE_SPACE}")
             fi
             server_docker_cmd=(docker run -t -d --shm-size 10g --net=host --ipc=host --privileged
+              --ulimit nofile=1048576:1048576
               -e no_proxy=.intel.com,127.0.0.1,localhost
               "${extra_envs[@]}"
               -e ROUTER_STARTUP_TIMEOUT_S="${ROUTER_STARTUP_TIMEOUT_S}"
@@ -580,6 +581,7 @@ jobs:
               client_docker_cmd=(docker run --rm
                 --shm-size 10g
                 --net=host
+                --ulimit nofile=1048576:1048576
                 -v "${WORKSPACE}:/workspace1"
                 -v "${hf_path}:/root/.cache/"
                 -u root
