@@ -31,6 +31,7 @@ DEFAULT_COLUMNS = [
     "throughput",
     "ttft_ms",
     "tpot_ms",
+    "exec_time",
     "error",
     "build_number",
     "build_url",
