@@ -8,7 +8,7 @@ on:
         default: '["cpu_benchmark"]'
         type: string
       node_label:
-        description: "Optional runner label to pin the job to a specific node. Leave empty to deploy to any random runner carrying runner_labels."
+        description: "Optional single runner label to pin the job to one node (typically the runner name). When set, the job runs ONLY on this label. Leave empty to use runner_labels instead."
         required: false
         default: ""
         type: string
@@ -103,9 +103,9 @@ permissions:
 
 jobs:
   manifest:
-    # When node_label is empty, run on any runner carrying runner_labels
-    # (random pick). When set, require it too so the job pins to that node.
-    runs-on: ${{ inputs.node_label != '' && fromJSON(format('["{0}","{1}"]', join(fromJSON(inputs.runner_labels || '["self-hosted","linux","x64"]'), '","'), inputs.node_label)) || fromJSON(inputs.runner_labels || '["self-hosted","linux","x64"]') }}
+    # If node_label is set, run ONLY on that label (pins to one node). Otherwise
+    # use runner_labels (random pick among runners carrying those labels).
+    runs-on: ${{ inputs.node_label != '' && fromJSON(format('["{0}"]', inputs.node_label)) || fromJSON(inputs.runner_labels || '["self-hosted","linux","x64"]') }}
     # GitHub's default job timeout is 360 min (6h). This self-hosted job can run
     # the full model matrix well past that, so raise the cap. Increase further
     # if a run still gets terminated for exceeding the limit.
