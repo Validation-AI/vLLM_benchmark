@@ -8,8 +8,9 @@ on:
         default: '["cpu_benchmark"]'
         type: string
       node_label:
+        description: "Optional runner label to pin the job to a specific node. Leave empty to deploy to any random runner carrying runner_labels."
         required: false
-        default: "m6980m02"
+        default: ""
         type: string
       default_dtype:
         required: false
@@ -102,7 +103,9 @@ permissions:
 
 jobs:
   manifest:
-    runs-on: ${{ fromJSON(inputs.runner_labels || '["self-hosted","linux","x64"]') }}
+    # When node_label is empty, run on any runner carrying runner_labels
+    # (random pick). When set, require it too so the job pins to that node.
+    runs-on: ${{ inputs.node_label != '' && fromJSON(format('["{0}","{1}"]', join(fromJSON(inputs.runner_labels || '["self-hosted","linux","x64"]'), '","'), inputs.node_label)) || fromJSON(inputs.runner_labels || '["self-hosted","linux","x64"]') }}
     # GitHub's default job timeout is 360 min (6h). This self-hosted job can run
     # the full model matrix well past that, so raise the cap. Increase further
     # if a run still gets terminated for exceeding the limit.
@@ -167,7 +170,8 @@ jobs:
           set -uo pipefail
           echo "=== cpu-vllm-benchmark configuration ==="
           echo 'runner_labels            = ${{ inputs.runner_labels }}'
-          echo "node_label               = ${NODE_LABEL}"
+          echo "node_label               = ${NODE_LABEL:-<none: random runner>}"
+          echo "runner_name              = ${RUNNER_NAME:-<unknown>}"
           echo "default_dtype            = ${DEFAULT_DTYPE}"
           echo "benchmark_script         = ${BENCHMARK_SCRIPT}"
           echo "manifest_format          = ${MANIFEST_FORMAT}"
@@ -232,7 +236,7 @@ jobs:
             local row_124="$2"
             local row_legacy="$3"
             local label="${NODE_LABEL:-${RUNNER_NAME:-}}"
-            if [[ "${label}" == *m02* || "${label}" == *m6980m02* ]]; then
+            if [[ "${label}" == *m6980m* ]]; then
               printf '%s' "${row_m02:-${row_legacy}}"
             elif [[ "${label}" == *124* || "${label}" == *r12s04* ]]; then
               printf '%s' "${row_124:-${row_legacy}}"
