@@ -433,10 +433,13 @@ jobs:
           }
 
           # Record the row's execution time into its result JSON so the compiled
-          # report table includes an exec_time column.
+          # report table includes an exec_time column. The client container runs
+          # as root and creates this file root-owned; write via a temp file +
+          # os.replace (needs only dir write perm) to avoid a PermissionError
+          # when this host-side step (user ubuntu) can't truncate the root file.
           record_row_time() {
             local json_path="$1" elapsed="$2"
-            python3 -c 'import json,sys; from pathlib import Path; p=Path(sys.argv[1]); d=json.loads(p.read_text()) if p.exists() else {}; s=int(sys.argv[2]); d["exec_time_s"]=s; d["exec_time"]="%02d:%02d:%02d"%(s//3600,(s%3600)//60,s%60); p.parent.mkdir(parents=True, exist_ok=True); p.write_text(json.dumps(d, indent=2))' "${json_path}" "${elapsed}"
+            python3 -c 'import json,os,sys; from pathlib import Path; p=Path(sys.argv[1]); d=json.loads(p.read_text()) if p.exists() else {}; s=int(sys.argv[2]); d["exec_time_s"]=s; d["exec_time"]="%02d:%02d:%02d"%(s//3600,(s%3600)//60,s%60); p.parent.mkdir(parents=True, exist_ok=True); tmp=p.with_name(p.name+".tmp"); tmp.write_text(json.dumps(d, indent=2)); os.replace(tmp, p)' "${json_path}" "${elapsed}"
           }
 
           while IFS=$'\x1f' read -r row_id model_id hfm02 hf124 hflegacy tp pp dp dp_mode row_extra last_batch_size history_source; do
