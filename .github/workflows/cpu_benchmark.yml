@@ -442,6 +442,18 @@ jobs:
             python3 -c 'import json,os,sys; from pathlib import Path; p=Path(sys.argv[1]); d=json.loads(p.read_text()) if p.exists() else {}; s=int(sys.argv[2]); d["exec_time_s"]=s; d["exec_time"]="%02d:%02d:%02d"%(s//3600,(s%3600)//60,s%60); p.parent.mkdir(parents=True, exist_ok=True); tmp=p.with_name(p.name+".tmp"); tmp.write_text(json.dumps(d, indent=2)); os.replace(tmp, p)' "${json_path}" "${elapsed}"
           }
 
+          # Merge the docker + vllm server/client commands into the row result
+          # JSON. Values pass via env to avoid shell-quoting issues; temp file +
+          # os.replace avoids the root-owned-file PermissionError.
+          record_row_meta() {
+            JSON_PATH="$1" \
+            META_DOCKER_SERVER_CMD="${2:-}" \
+            META_DOCKER_CLIENT_CMD="${3:-}" \
+            META_VLLM_SERVER_CMD="${4:-}" \
+            META_VLLM_CLIENT_CMD="${5:-}" \
+            python3 -c 'import json,os; from pathlib import Path; p=Path(os.environ["JSON_PATH"]); d=json.loads(p.read_text()) if p.exists() else {}; d["docker_server_command"]=os.environ.get("META_DOCKER_SERVER_CMD",""); d["docker_client_command"]=os.environ.get("META_DOCKER_CLIENT_CMD",""); d["vllm_server_command"]=os.environ.get("META_VLLM_SERVER_CMD",""); d["vllm_client_command"]=os.environ.get("META_VLLM_CLIENT_CMD",""); p.parent.mkdir(parents=True, exist_ok=True); tmp=p.with_name(p.name+".tmp"); tmp.write_text(json.dumps(d, indent=2)); os.replace(tmp, p)'
+          }
+
           while IFS=$'\x1f' read -r row_id model_id hfm02 hf124 hflegacy tp pp dp dp_mode row_extra last_batch_size history_source; do
             [[ -z "${row_id:-}" ]] && continue
             hf_path="$(pick_hf_path "${hfm02}" "${hf124}" "${hflegacy}")"
@@ -457,6 +469,11 @@ jobs:
             container_result_path="/workspace1/logs/row_results/${safe_row_id}.json"
             host_result_path="${WORKSPACE}/logs/row_results/${safe_row_id}.json"
             client_log_path="${WORKSPACE}/logs/client_${safe_row_id}.log"
+            client_capture="${WORKSPACE}/logs/client_capture_${safe_row_id}.log"
+            docker_server_command=""
+            docker_client_command=""
+            vllm_server_command=""
+            vllm_client_command=""
 
             # Resume support: skip rows already completed in this session.
             if [[ -f "${persist_results}/${safe_row_id}.json" ]]; then
@@ -529,8 +546,9 @@ jobs:
               --entrypoint=''
               "${docker_image}"
               /bin/bash -c "${launch_cmd}")
+            docker_server_command="$(printf '%q ' "${server_docker_cmd[@]}")"
             echo "=== SERVER docker command (row_id=${row_id}) ==="
-            printf '%q ' "${server_docker_cmd[@]}"; printf '\n'
+            printf '%s\n' "${docker_server_command}"
             "${server_docker_cmd[@]}"
 
             mapfile -t length_list < <(split_csv "${LENGTH_CONFIGS}" "default")
@@ -546,15 +564,20 @@ jobs:
               snapshot_server_logs "${safe_row_id}" "${container_name}"
               write_row_error_result "${host_result_path}" "${row_id}" "${model_id}" "${tp}" "${pp}" "${dp}" "${dp_mode}" "${DEFAULT_DTYPE}" "${HARDWARE}" "${fail_len}" "INFRA_ERROR" "server_startup_timeout"
               echo "ROW_RESULT row_id=${row_id} status=INFRA_ERROR model=${model_id} tp=${tp} pp=${pp} dp=${dp} dp_mode=${dp_mode} dtype=${DEFAULT_DTYPE} length=${fail_len} error=server_startup_timeout" | tee -a "${WORKSPACE}/logs/summary.log"
+              vllm_server_command="$( { docker logs "${container_name}" 2>&1; cat "${WORKSPACE}"/logs/router*.log 2>/dev/null; } | grep -aoE 'vllm serve .*' | head -n1 || true)"
               row_elapsed_s=$(( $(date +%s) - row_start_ts ))
               echo "ROW_TIME row_id=${row_id} model=${model_id} elapsed_s=${row_elapsed_s} ($(printf '%02d:%02d:%02d' $((row_elapsed_s/3600)) $(((row_elapsed_s%3600)/60)) $((row_elapsed_s%60))))" | tee -a "${WORKSPACE}/logs/summary.log"
               record_row_time "${host_result_path}" "${row_elapsed_s}"
+              record_row_meta "${host_result_path}" "${docker_server_command}" "${docker_client_command}" "${vllm_server_command}" "${vllm_client_command}"
               cp -f "${host_result_path}" "${persist_results}/${safe_row_id}.json" 2>/dev/null || true
               docker exec "${container_name}" pkill -2 -f 'vllm.entrypoints.openai.api_server' >/dev/null 2>&1 || true
               docker stop "${container_name}" >/dev/null 2>&1 || true
               docker rm "${container_name}" >/dev/null 2>&1 || true
               continue
             fi
+
+            # Best-effort: capture the actual "vllm serve ..." the server ran.
+            vllm_server_command="$( { docker logs "${container_name}" 2>&1; cat "${WORKSPACE}"/logs/router*.log 2>/dev/null; } | grep -aoE 'vllm serve .*' | head -n1 || true)"
 
             for length_config in "${length_list[@]}"; do
               docker_env_args=(
@@ -611,9 +634,12 @@ jobs:
                 "${docker_env_args[@]}"
                 "${docker_image}"
                 /bin/bash -lc "cd /workspace1 && bash /workspace1/perf_fixed_batch_vllm.sh")
+              docker_client_command="$(printf '%q ' "${client_docker_cmd[@]}")"
               echo "=== CLIENT docker command (row_id=${row_id} length=${length_config}) ==="
-              printf '%q ' "${client_docker_cmd[@]}"; printf '\n'
-              "${client_docker_cmd[@]}"
+              printf '%s\n' "${docker_client_command}"
+              "${client_docker_cmd[@]}" 2>&1 | tee "${client_capture}"
+              # Best-effort: capture the actual "vllm bench serve ..." the client ran.
+              vllm_client_command="$(grep -aoE 'vllm bench serve .*' "${client_capture}" | head -n1 || true)"
 
               if [[ -f "${host_result_path}" ]]; then
                 result_status=$(python3 -c 'import json,sys; from pathlib import Path; print(json.loads(Path(sys.argv[1]).read_text()).get("status", "MODEL_ERROR"))' "${host_result_path}")
@@ -626,6 +652,7 @@ jobs:
             row_elapsed_s=$(( $(date +%s) - row_start_ts ))
             echo "ROW_TIME row_id=${row_id} model=${model_id} elapsed_s=${row_elapsed_s} ($(printf '%02d:%02d:%02d' $((row_elapsed_s/3600)) $(((row_elapsed_s%3600)/60)) $((row_elapsed_s%60))))" | tee -a "${WORKSPACE}/logs/summary.log"
             record_row_time "${host_result_path}" "${row_elapsed_s}"
+            record_row_meta "${host_result_path}" "${docker_server_command}" "${docker_client_command}" "${vllm_server_command}" "${vllm_client_command}"
 
             # Persist this row's result so a resumed run skips it.
             cp -f "${host_result_path}" "${persist_results}/${safe_row_id}.json" 2>/dev/null || true
