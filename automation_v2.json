@@ -79,7 +79,7 @@
   },
   {
     "enabled": true,
-    "model_id": "nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning-BF16",
+    "model_id": "nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning-FP8",
     "hugginface_path": "/data",
     "tp": 2,
     "pp": 1,
@@ -209,7 +209,7 @@
   },
   {
     "enabled": true,
-    "model_id": "mistralai/Ministral-3-8B-Instruct-2512-BF16",
+    "model_id": "mistralai/Ministral-3-8B-Instruct-2512",
     "hugginface_path": "/data",
     "tp": 1,
     "pp": 1,
@@ -287,7 +287,7 @@
   },
   {
     "enabled": true,
-    "model_id": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
+    "model_id": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8",
     "hugginface_path": "/data",
     "tp": 2,
     "pp": 1,
