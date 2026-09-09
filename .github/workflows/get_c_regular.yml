@@ -19,9 +19,9 @@ on:
         default: vllm/vllm-openai-cpu:v0.24.0
         type: string
       case_list_xlsx:
-        description: Manifest path relative to repo root (.xlsx or .json)
+        description: Manifest path relative to repo root (.xlsx or .json). The .json schema supports per-row input/output length and sla columns.
         required: false
-        default: automation/manifests/serving_tuning/automation_v0.xlsx
+        default: automation_v2.json
         type: string
       case_list_sheet:
         description: Workbook sheet name

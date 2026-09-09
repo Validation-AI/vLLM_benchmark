@@ -19,6 +19,7 @@ HARDWARE=${HARDWARE:-emr}
 PIPELINE_PARALLEL=${PIPELINE_PARALLEL:-1}
 LENGTH_IN=${LENGTH_IN:-1024}
 LENGTH_OUT=${LENGTH_OUT:-1024}
+SLA_SPEC=${SLA_SPEC:-}
 SERVER_CONTAINER=${SERVER_CONTAINER:-vllm-bfloat16}
 SERVER_EXTRA_ARGS=${SERVER_EXTRA_ARGS:---trust-remote-code --no-enable-prefix-caching --max-num-batched-tokens=16384 --gpu-memory-utilization=0.8}
 CLIENT_MAX_RETRIES=${CLIENT_MAX_RETRIES:-1}
@@ -111,6 +112,42 @@ should_use_explicit_tokenizer() {
     fi
 
     return 1
+}
+
+# Parses an SLA spec like "TTFT < 3s; TPOT < 100ms" into SLA_TTFT_MS_MAX/SLA_TPOT_MS_MAX (both in ms).
+# Leaves the thresholds empty (unconstrained) when SLA_SPEC is empty or has no parseable clause.
+parse_sla_thresholds() {
+    SLA_TTFT_MS_MAX=''
+    SLA_TPOT_MS_MAX=''
+
+    if [[ -z "${SLA_SPEC}" ]]; then
+        return
+    fi
+
+    local value unit
+    if [[ "${SLA_SPEC}" =~ TTFT[^0-9]*\<[[:space:]]*([0-9.]+)[[:space:]]*(ms|s) ]]; then
+        value="${BASH_REMATCH[1]}"
+        unit="${BASH_REMATCH[2]}"
+        if [[ "${unit}" == "s" ]]; then
+            SLA_TTFT_MS_MAX="$(awk -v v="${value}" 'BEGIN { printf "%.3f", v * 1000 }')"
+        else
+            SLA_TTFT_MS_MAX="${value}"
+        fi
+    fi
+
+    if [[ "${SLA_SPEC}" =~ TPOT[^0-9]*\<[[:space:]]*([0-9.]+)[[:space:]]*(ms|s) ]]; then
+        value="${BASH_REMATCH[1]}"
+        unit="${BASH_REMATCH[2]}"
+        if [[ "${unit}" == "s" ]]; then
+            SLA_TPOT_MS_MAX="$(awk -v v="${value}" 'BEGIN { printf "%.3f", v * 1000 }')"
+        else
+            SLA_TPOT_MS_MAX="${value}"
+        fi
+    fi
+
+    if [[ -z "${SLA_TTFT_MS_MAX}" && -z "${SLA_TPOT_MS_MAX}" ]]; then
+        echo "WARNING: SLA_SPEC='${SLA_SPEC}' has no parseable TTFT/TPOT threshold; SLA gating disabled for this run." >&2
+    fi
 }
 
 phase_records_point_elapsed() {
@@ -368,6 +405,9 @@ for row_idx, row in enumerate(rows, start=1):
     last_status = as_text(row.get("last_status"))
     c_recommended = as_text(row.get("c_recommended"))
     c_regular = as_text(row.get("c_regular"))
+    length_in = as_text(row.get("input"))
+    length_out = as_text(row.get("output"))
+    sla = as_text(row.get("sla"))
     print(FIELD_SEP.join([
         str(row_idx),
         model,
@@ -379,6 +419,9 @@ for row_idx, row in enumerate(rows, start=1):
         last_status,
         c_recommended,
         c_regular,
+        length_in,
+        length_out,
+        sla,
     ]))
 PY
         return
@@ -395,7 +438,6 @@ wb = load_workbook(path)
 ws = wb[sheet]
 headers = [ws.cell(row=1, column=idx).value for idx in range(1, ws.max_column + 1)]
 header_to_col = {header: idx + 1 for idx, header in enumerate(headers) if header}
-C_REGULAR_COLUMN = 14
 
 def as_enabled(value):
     if isinstance(value, bool):
@@ -442,7 +484,18 @@ for row_idx in range(2, ws.max_row + 1):
     c_recommended = ""
     if "c_recommended" in header_to_col:
         c_recommended = as_text(ws.cell(row=row_idx, column=header_to_col["c_recommended"]).value)
-    c_regular = as_text(ws.cell(row=row_idx, column=C_REGULAR_COLUMN).value)
+    c_regular = ""
+    if "c_regular" in header_to_col:
+        c_regular = as_text(ws.cell(row=row_idx, column=header_to_col["c_regular"]).value)
+    length_in = ""
+    if "input" in header_to_col:
+        length_in = as_text(ws.cell(row=row_idx, column=header_to_col["input"]).value)
+    length_out = ""
+    if "output" in header_to_col:
+        length_out = as_text(ws.cell(row=row_idx, column=header_to_col["output"]).value)
+    sla = ""
+    if "sla" in header_to_col:
+        sla = as_text(ws.cell(row=row_idx, column=header_to_col["sla"]).value)
     print(FIELD_SEP.join([
         str(row_idx),
         model,
@@ -454,6 +507,9 @@ for row_idx in range(2, ws.max_row + 1):
         last_status,
         c_recommended,
         c_regular,
+        length_in,
+        length_out,
+        sla,
     ]))
 PY
 }
@@ -482,6 +538,10 @@ for row in rows:
     row.setdefault("last_throughput", None)
     row.setdefault("last_ttft_ms", None)
     row.setdefault("last_tpot_ms", None)
+    row.setdefault("c_recommended_throughput", None)
+    row.setdefault("c_recommended_ttft_ms", None)
+    row.setdefault("c_recommended_tpot_ms", None)
+    row.setdefault("last_test_command", None)
 
 output_path.parent.mkdir(parents=True, exist_ok=True)
 with open(output_path, "w", encoding="utf-8") as handle:
@@ -504,7 +564,19 @@ if "c_recommended" not in headers:
     ws.cell(row=1, column=ws.max_column + 1).value = "c_recommended"
     headers.append("c_recommended")
 
-for header in ("last_throughput", "last_ttft_ms", "last_tpot_ms"):
+if "c_regular" not in headers:
+    ws.cell(row=1, column=ws.max_column + 1).value = "c_regular"
+    headers.append("c_regular")
+
+for header in (
+    "last_throughput",
+    "last_ttft_ms",
+    "last_tpot_ms",
+    "c_recommended_throughput",
+    "c_recommended_ttft_ms",
+    "c_recommended_tpot_ms",
+    "last_test_command",
+):
     if header not in headers:
         ws.cell(row=1, column=ws.max_column + 1).value = header
         headers.append(header)
@@ -522,10 +594,11 @@ write_case_list_result() {
     local last_throughput_value="$6"
     local last_ttft_value="$7"
     local last_tpot_value="$8"
+    local last_command_value="${9:-}"
 
     if case_list_is_json; then
         resolve_case_list_json_output
-        python3 - "${CASE_LIST_JSON_OUTPUT}" "${row_idx}" "${status_value}" "${notes_value}" "${c_recommended_value}" "${c_regular_value}" "${last_throughput_value}" "${last_ttft_value}" "${last_tpot_value}" <<'PY'
+        python3 - "${CASE_LIST_JSON_OUTPUT}" "${row_idx}" "${status_value}" "${notes_value}" "${c_recommended_value}" "${c_regular_value}" "${last_throughput_value}" "${last_ttft_value}" "${last_tpot_value}" "${last_command_value}" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
@@ -541,7 +614,8 @@ from pathlib import Path
     last_throughput_value,
     last_ttft_value,
     last_tpot_value,
-) = sys.argv[1:10]
+    last_command_value,
+) = sys.argv[1:11]
 
 row_idx = int(row_idx) - 1
 manifest_path = Path(path)
@@ -555,10 +629,15 @@ row["last_status"] = status_value
 row["notes"] = notes_value
 row["c_recommended"] = int(c_recommended_value) if c_recommended_value.strip() else None
 row["c_regular"] = int(c_regular_value) if c_regular_value.strip() else None
-row["last_batch_size"] = int(c_regular_value) if c_regular_value.strip() else None
 row["last_throughput"] = float(last_throughput_value) if last_throughput_value.strip() else None
 row["last_ttft_ms"] = float(last_ttft_value) if last_ttft_value.strip() else None
 row["last_tpot_ms"] = float(last_tpot_value) if last_tpot_value.strip() else None
+# c_recommended_* mirrors last_* today (both describe the c_recommended point);
+# kept separate so a future real c_regular benchmark can populate last_* independently.
+row["c_recommended_throughput"] = float(last_throughput_value) if last_throughput_value.strip() else None
+row["c_recommended_ttft_ms"] = float(last_ttft_value) if last_ttft_value.strip() else None
+row["c_recommended_tpot_ms"] = float(last_tpot_value) if last_tpot_value.strip() else None
+row["last_test_command"] = last_command_value if last_command_value.strip() else None
 
 with open(manifest_path, "w", encoding="utf-8") as handle:
     json.dump(rows, handle, indent=2, ensure_ascii=False)
@@ -567,7 +646,7 @@ PY
         return
     fi
 
-    python3 - "${CASE_LIST_XLSX}" "${CASE_LIST_SHEET}" "${row_idx}" "${status_value}" "${notes_value}" "${c_recommended_value}" "${c_regular_value}" "${last_throughput_value}" "${last_ttft_value}" "${last_tpot_value}" <<'PY'
+    python3 - "${CASE_LIST_XLSX}" "${CASE_LIST_SHEET}" "${row_idx}" "${status_value}" "${notes_value}" "${c_recommended_value}" "${c_regular_value}" "${last_throughput_value}" "${last_ttft_value}" "${last_tpot_value}" "${last_command_value}" <<'PY'
 import sys
 from datetime import datetime, timezone
 from openpyxl import load_workbook
@@ -583,9 +662,9 @@ from openpyxl import load_workbook
     last_throughput_value,
     last_ttft_value,
     last_tpot_value,
-) = sys.argv[1:11]
+    last_command_value,
+) = sys.argv[1:12]
 row_idx = int(row_idx)
-C_REGULAR_COLUMN = 14  # Excel column N, expected to be last_batch_size.
 wb = load_workbook(path)
 ws = wb[sheet]
 headers = [ws.cell(row=1, column=idx).value for idx in range(1, ws.max_column + 1)]
@@ -594,7 +673,19 @@ if "c_recommended" not in headers:
     ws.cell(row=1, column=ws.max_column + 1).value = "c_recommended"
     headers.append("c_recommended")
 
-for header in ("last_throughput", "last_ttft_ms", "last_tpot_ms"):
+if "c_regular" not in headers:
+    ws.cell(row=1, column=ws.max_column + 1).value = "c_regular"
+    headers.append("c_regular")
+
+for header in (
+    "last_throughput",
+    "last_ttft_ms",
+    "last_tpot_ms",
+    "c_recommended_throughput",
+    "c_recommended_ttft_ms",
+    "c_recommended_tpot_ms",
+    "last_test_command",
+):
     if header not in headers:
         ws.cell(row=1, column=ws.max_column + 1).value = header
         headers.append(header)
@@ -617,27 +708,24 @@ else:
     ws.cell(row=row_idx, column=cols["c_recommended"]).value = None
 
 if c_regular_value.strip():
-    ws.cell(row=row_idx, column=C_REGULAR_COLUMN).value = int(c_regular_value)
+    ws.cell(row=row_idx, column=cols["c_regular"]).value = int(c_regular_value)
 else:
-    ws.cell(row=row_idx, column=C_REGULAR_COLUMN).value = None
+    ws.cell(row=row_idx, column=cols["c_regular"]).value = None
 
-if "last_throughput" in cols:
-    if last_throughput_value.strip():
-        ws.cell(row=row_idx, column=cols["last_throughput"]).value = float(last_throughput_value)
-    else:
-        ws.cell(row=row_idx, column=cols["last_throughput"]).value = None
+def set_float(header, value):
+    if header not in cols:
+        return
+    ws.cell(row=row_idx, column=cols[header]).value = float(value) if value.strip() else None
 
-if "last_ttft_ms" in cols:
-    if last_ttft_value.strip():
-        ws.cell(row=row_idx, column=cols["last_ttft_ms"]).value = float(last_ttft_value)
-    else:
-        ws.cell(row=row_idx, column=cols["last_ttft_ms"]).value = None
+set_float("last_throughput", last_throughput_value)
+set_float("last_ttft_ms", last_ttft_value)
+set_float("last_tpot_ms", last_tpot_value)
+set_float("c_recommended_throughput", last_throughput_value)
+set_float("c_recommended_ttft_ms", last_ttft_value)
+set_float("c_recommended_tpot_ms", last_tpot_value)
 
-if "last_tpot_ms" in cols:
-    if last_tpot_value.strip():
-        ws.cell(row=row_idx, column=cols["last_tpot_ms"]).value = float(last_tpot_value)
-    else:
-        ws.cell(row=row_idx, column=cols["last_tpot_ms"]).value = None
+if "last_test_command" in cols:
+    ws.cell(row=row_idx, column=cols["last_test_command"]).value = last_command_value if last_command_value.strip() else None
 
 wb.save(path)
 PY
@@ -648,7 +736,7 @@ run_case_list() {
     local last_status_value existing_c_recommended existing_c_regular
     local case_run_tag case_server_container case_server_extra_args case_log_dir
     local case_output_log result_marker_line marker_model marker_c_recommended marker_c_regular marker_recommendation
-    local marker_last_throughput marker_last_ttft marker_last_tpot
+    local marker_last_throughput marker_last_ttft marker_last_tpot marker_last_command
     local failure_note
     local case_list_source_path
 
@@ -660,12 +748,23 @@ run_case_list() {
 
     ensure_case_list_result_columns
 
-    while IFS=$'\x1f' read -r row_idx model_value tp_value pp_value dp_value dp_mode_value manifest_extra_args last_status_value existing_c_recommended existing_c_regular; do
+    while IFS=$'\x1f' read -r row_idx model_value tp_value pp_value dp_value dp_mode_value manifest_extra_args last_status_value existing_c_recommended existing_c_regular case_length_in case_length_out case_sla; do
         [[ -z "${row_idx}" ]] && continue
 
         if [[ "${last_status_value}" == "PASS" && -n "${existing_c_recommended}" && -n "${existing_c_regular}" ]]; then
             echo "Skipping completed case row=${row_idx} model=${model_value} c_recommended=${existing_c_recommended} c_regular=${existing_c_regular}"
             continue
+        fi
+
+        case_length_in_resolved="${LENGTH_IN}"
+        case_length_out_resolved="${LENGTH_OUT}"
+        if [[ -n "${case_length_in}" || -n "${case_length_out}" ]]; then
+            if [[ ! "${case_length_in}" =~ ^[0-9]+$ || ! "${case_length_out}" =~ ^[0-9]+$ ]]; then
+                echo "Skipping case row=${row_idx} model=${model_value}: input/output length not ready (input='${case_length_in}' output='${case_length_out}' sla='${case_sla}')"
+                continue
+            fi
+            case_length_in_resolved="${case_length_in}"
+            case_length_out_resolved="${case_length_out}"
         fi
 
         case_run_tag="$(build_case_run_tag "${model_value}" "${tp_value}" "${pp_value}" "${dp_value}")"
@@ -675,7 +774,7 @@ run_case_list() {
         mkdir -p "${case_log_dir}"
         case_output_log="${case_log_dir}/${case_run_tag}_wrapper.log"
 
-        echo "Running case row=${row_idx} model=${model_value} tp=${tp_value} pp=${pp_value} dp=${dp_value} dp_mode=${dp_mode_value}"
+        echo "Running case row=${row_idx} model=${model_value} tp=${tp_value} pp=${pp_value} dp=${dp_value} dp_mode=${dp_mode_value} length_in=${case_length_in_resolved} length_out=${case_length_out_resolved} sla=${case_sla}"
         echo "Resolved server args: ${case_server_extra_args}"
 
         if RUN_FROM_CASE_LIST=0 \
@@ -687,6 +786,9 @@ run_case_list() {
             SERVER_CONTAINER="${case_server_container}" \
             RUN_TAG="${case_run_tag}" \
             SERVER_EXTRA_ARGS="${case_server_extra_args}" \
+            LENGTH_IN="${case_length_in_resolved}" \
+            LENGTH_OUT="${case_length_out_resolved}" \
+            SLA_SPEC="${case_sla}" \
             VALIDATE_OUTPUT_LAYOUT_ONLY="${VALIDATE_OUTPUT_LAYOUT_ONLY}" \
             CASE_LIST_XLSX="${CASE_LIST_XLSX}" \
             CASE_LIST_SHEET="${CASE_LIST_SHEET}" \
@@ -699,7 +801,7 @@ run_case_list() {
             result_marker_line="$(grep '^RESULT_MARKER|' "${case_output_log}" | tail -n 1 || true)"
             if [[ -z "${result_marker_line}" ]]; then
                 failure_note="missing result marker; run_logs_dir=${case_log_dir}; wrapper_log=${case_output_log}; failure_context=${case_log_dir}/${case_run_tag}_failure_context.log; server_failure_snapshot=${case_log_dir}/${case_run_tag}_server_failure_snapshot.log"
-                write_case_list_result "${row_idx}" "FAIL" "${failure_note}" "" "" "" "" ""
+                write_case_list_result "${row_idx}" "FAIL" "${failure_note}" "" "" "" "" "" ""
                 echo "ERROR: missing result marker for case row=${row_idx}, model=${model_value}" >&2
                 if [[ "${CONTINUE_ON_CASE_FAILURE}" == "1" ]]; then
                     continue
@@ -707,8 +809,8 @@ run_case_list() {
                 exit 1
             fi
 
-            IFS='|' read -r _ marker_model marker_c_recommended marker_c_regular marker_recommendation marker_last_throughput marker_last_ttft marker_last_tpot <<< "${result_marker_line}"
-            write_case_list_result "${row_idx}" "PASS" "run_logs_dir=${case_log_dir}; recommendation=${marker_recommendation}; wrapper_log=${case_output_log}" "${marker_c_recommended}" "${marker_c_regular}" "${marker_last_throughput}" "${marker_last_ttft}" "${marker_last_tpot}"
+            IFS='|' read -r _ marker_model marker_c_recommended marker_c_regular marker_recommendation marker_last_throughput marker_last_ttft marker_last_tpot marker_last_command <<< "${result_marker_line}"
+            write_case_list_result "${row_idx}" "PASS" "run_logs_dir=${case_log_dir}; recommendation=${marker_recommendation}; wrapper_log=${case_output_log}" "${marker_c_recommended}" "${marker_c_regular}" "${marker_last_throughput}" "${marker_last_ttft}" "${marker_last_tpot}" "${marker_last_command}"
             if case_list_is_json; then
                 echo "Updated json row=${row_idx} model=${marker_model} c_recommended=${marker_c_recommended} c_regular=${marker_c_regular} throughput=${marker_last_throughput} ttft_ms=${marker_last_ttft} tpot_ms=${marker_last_tpot} output=${CASE_LIST_JSON_OUTPUT}"
             else
@@ -717,7 +819,7 @@ run_case_list() {
             echo "Recommendation file: ${marker_recommendation}"
         else
             failure_note="run_logs_dir=${case_log_dir}; wrapper_log=${case_output_log}; failure_context=${case_log_dir}/${case_run_tag}_failure_context.log; server_failure_snapshot=${case_log_dir}/${case_run_tag}_server_failure_snapshot.log"
-            write_case_list_result "${row_idx}" "FAIL" "${failure_note}" "" "" "" "" ""
+            write_case_list_result "${row_idx}" "FAIL" "${failure_note}" "" "" "" "" "" ""
             echo "ERROR: case row=${row_idx} model=${model_value} failed" >&2
             if [[ "${CONTINUE_ON_CASE_FAILURE}" == "1" ]]; then
                 continue
@@ -820,6 +922,7 @@ TOKENIZER_PATH=${TOKENIZER_PATH:-}
 BENCH_MODEL=${BENCH_MODEL:-${MODEL}}
 
 resolve_benchmark_transport
+parse_sla_thresholds
 
 echo "Using host cache root: ${CACHE}"
 echo "Using result root: ${RESULT_ROOT}"
@@ -837,6 +940,11 @@ if [[ -n "${VLLM_CPU_KVCACHE_SPACE}" ]]; then
 fi
 echo "Using benchmark backend: ${BENCH_BACKEND}"
 echo "Using benchmark endpoint: ${BENCH_ENDPOINT}"
+if [[ -n "${SLA_TTFT_MS_MAX}" || -n "${SLA_TPOT_MS_MAX}" ]]; then
+    echo "Using SLA gate: sla_spec='${SLA_SPEC}' ttft_ms_max=${SLA_TTFT_MS_MAX:-none} tpot_ms_max=${SLA_TPOT_MS_MAX:-none}"
+else
+    echo "Using SLA gate: none (sla_spec='${SLA_SPEC}')"
+fi
 
 summary_csv="${FINAL_OUTPUT_DIR}/${RUN_TAG}_summary.csv"
 recommendation_txt="${FINAL_OUTPUT_DIR}/${RUN_TAG}_recommendation.txt"
@@ -890,6 +998,7 @@ declare -A mean_ttft_map
 declare -A mean_tpot_map
 declare -A phase_map
 declare -A log_map
+declare -A command_map
 
 select_failure_source_file() {
     local failure_context_log="${LOG_FILE_PREFIX}_failure_context.log"
@@ -1804,6 +1913,53 @@ throughput_regresses_meaningfully() {
     float_lt "${output_token_throughput_map[$candidate]}" "${threshold}"
 }
 
+# True (0) when the measured TTFT/TPOT at this concurrency violate the SLA gate.
+# With no parseable SLA thresholds, or no measurement yet, nothing is considered violated.
+sla_violated() {
+    local concurrency="$1"
+
+    if [[ -z "${SLA_TTFT_MS_MAX:-}" && -z "${SLA_TPOT_MS_MAX:-}" ]]; then
+        return 1
+    fi
+
+    if [[ -n "${SLA_TTFT_MS_MAX:-}" ]]; then
+        if [[ -z "${mean_ttft_map[$concurrency]:-}" ]]; then
+            return 1
+        fi
+        if float_gt "${mean_ttft_map[$concurrency]}" "${SLA_TTFT_MS_MAX}"; then
+            return 0
+        fi
+    fi
+
+    if [[ -n "${SLA_TPOT_MS_MAX:-}" ]]; then
+        if [[ -z "${mean_tpot_map[$concurrency]:-}" ]]; then
+            return 1
+        fi
+        if float_gt "${mean_tpot_map[$concurrency]}" "${SLA_TPOT_MS_MAX}"; then
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
+# A concurrency point is past the acceptable operating envelope when it either
+# regresses throughput relative to the baseline, or violates the SLA gate outright.
+point_exceeds_limit() {
+    local candidate="$1"
+    local baseline="$2"
+
+    if throughput_regresses_meaningfully "${candidate}" "${baseline}"; then
+        return 0
+    fi
+
+    if sla_violated "${candidate}"; then
+        return 0
+    fi
+
+    return 1
+}
+
 should_promote_stable_best() {
     local candidate="$1"
     local baseline="$2"
@@ -1995,6 +2151,17 @@ fi
 "\${BENCH_CMD[@]}"
 EOF
 )
+
+    local recorded_bench_flags="--backend ${BENCH_BACKEND} --model ${BENCH_MODEL} --dataset-name random --random-input-len ${LENGTH_IN} --random-output-len ${LENGTH_OUT} --ignore-eos --trust-remote-code --num-prompt ${num_prompt} --num-warmups ${num_warmups} --request-rate ${request_rate} --port 8000 --host 127.0.0.1 --max-concurrency ${max_concurrency} --temperature 0"
+    if [[ -n "${BENCH_ENDPOINT}" ]]; then
+        recorded_bench_flags+=" --endpoint ${BENCH_ENDPOINT}"
+    fi
+    if should_use_explicit_tokenizer; then
+        recorded_bench_flags+=" --tokenizer ${TOKENIZER_PATH:-${BENCH_MODEL}}"
+    fi
+    # Recorded for audit/reproduction purposes; keyed by concurrency so the exact
+    # command behind the c_recommended point can be looked up later.
+    command_map[$max_concurrency]="docker run --rm --net host --ipc host --privileged --shm-size 10g --ulimit nofile=${DOCKER_NOFILE_ULIMIT} -u root -e HF_HUB_OFFLINE=1 -e TRANSFORMERS_OFFLINE=1 -e VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 -v ${CACHE}:/root/.cache --entrypoint= ${IMAGE} vllm bench serve ${recorded_bench_flags}"
 
     append_command_log "${LOG_FILE_PREFIX}_client_commands.log" \
         docker run --rm \
@@ -2308,12 +2475,14 @@ run_exponential_sweep() {
             break
         fi
 
-        if [[ -n "${best_concurrency}" ]] && should_promote_stable_best "${concurrency}" "${best_concurrency}"; then
+        if [[ -n "${best_concurrency}" ]] && ! sla_violated "${concurrency}" && should_promote_stable_best "${concurrency}" "${best_concurrency}"; then
             best_concurrency="${concurrency}"
         fi
 
         if [[ -z "${previous_stable}" ]]; then
-            best_concurrency="${concurrency}"
+            if ! sla_violated "${concurrency}"; then
+                best_concurrency="${concurrency}"
+            fi
             previous_stable="${concurrency}"
             if [[ -n "${first_failed_above}" ]]; then
                 exp_refine_low="${concurrency}"
@@ -2330,7 +2499,7 @@ run_exponential_sweep() {
             continue
         fi
 
-        if throughput_regresses_meaningfully "${concurrency}" "${previous_stable}"; then
+        if point_exceeds_limit "${concurrency}" "${previous_stable}"; then
             exp_refine_low="${concurrency}"
             exp_refine_high="${previous_stable}"
             exp_refine_preferred_side='higher'
@@ -2346,7 +2515,11 @@ run_exponential_sweep() {
     done
 
     if [[ -z "${best_concurrency}" ]]; then
-        echo "ERROR: top-down sweep did not find a stable concurrency point." >&2
+        if [[ -n "${previous_stable}" ]]; then
+            echo "ERROR: no concurrency point in the top-down sweep satisfied the SLA gate (sla_spec='${SLA_SPEC}' ttft_ms_max=${SLA_TTFT_MS_MAX:-none} tpot_ms_max=${SLA_TPOT_MS_MAX:-none})." >&2
+        else
+            echo "ERROR: top-down sweep did not find a stable concurrency point." >&2
+        fi
         exit 1
     fi
 
@@ -2425,11 +2598,15 @@ binary_refine_interval() {
             fi
         fi
 
-        if [[ -z "${best_concurrency}" ]] || should_promote_stable_best "${mid}" "${best_concurrency}"; then
+        if [[ -z "${best_concurrency}" ]]; then
+            if ! sla_violated "${mid}"; then
+                best_concurrency="${mid}"
+            fi
+        elif ! sla_violated "${mid}" && should_promote_stable_best "${mid}" "${best_concurrency}"; then
             best_concurrency="${mid}"
         fi
 
-        if throughput_regresses_meaningfully "${mid}" "${better_side}"; then
+        if point_exceeds_limit "${mid}" "${better_side}"; then
             if [[ "${preferred_side}" == 'higher' ]]; then
                 low="${mid}"
             else
@@ -2507,6 +2684,10 @@ c_regular=${c_regular}
 best_output_token_throughput=${output_token_throughput_map[$c_recommended]}
 best_ttft_ms=${mean_ttft_map[$c_recommended]}
 best_tpot_ms=${mean_tpot_map[$c_recommended]}
+sla_spec=${SLA_SPEC}
+sla_ttft_ms_max=${SLA_TTFT_MS_MAX:-none}
+sla_tpot_ms_max=${SLA_TPOT_MS_MAX:-none}
+last_test_command=${command_map[$c_recommended]:-}
 log_dir=${LOG_DIR}
 summary_csv=${summary_csv}
 c_regular_file=${C_REGULAR_FILE}
@@ -2521,4 +2702,4 @@ echo "C_regular mapping saved to ${C_REGULAR_FILE}"
 echo "Detailed results index saved to ${RESULT_INDEX_FILE}"
 echo "Failed case summary file: ${FAILED_CASE_SUMMARY_FILE}"
 echo "Recommendation saved to ${recommendation_txt}"
-echo "RESULT_MARKER|${MODEL}|${c_recommended}|${c_regular}|${recommendation_txt}|${output_token_throughput_map[$c_recommended]}|${mean_ttft_map[$c_recommended]}|${mean_tpot_map[$c_recommended]}"
+echo "RESULT_MARKER|${MODEL}|${c_recommended}|${c_regular}|${recommendation_txt}|${output_token_throughput_map[$c_recommended]}|${mean_ttft_map[$c_recommended]}|${mean_tpot_map[$c_recommended]}|${command_map[$c_recommended]:-}"
