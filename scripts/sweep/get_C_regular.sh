@@ -20,6 +20,8 @@ PIPELINE_PARALLEL=${PIPELINE_PARALLEL:-1}
 LENGTH_IN=${LENGTH_IN:-1024}
 LENGTH_OUT=${LENGTH_OUT:-1024}
 SLA_SPEC=${SLA_SPEC:-}
+# Dedicated exit code so run_case_list() can tell "no point met the SLA" apart from other failures.
+SLA_GATE_FAILURE_EXIT_CODE=3
 SERVER_CONTAINER=${SERVER_CONTAINER:-vllm-bfloat16}
 SERVER_EXTRA_ARGS=${SERVER_EXTRA_ARGS:---trust-remote-code --no-enable-prefix-caching --max-num-batched-tokens=16384 --gpu-memory-utilization=0.8}
 CLIENT_MAX_RETRIES=${CLIENT_MAX_RETRIES:-1}
@@ -542,6 +544,7 @@ for row in rows:
     row.setdefault("c_recommended_ttft_ms", None)
     row.setdefault("c_recommended_tpot_ms", None)
     row.setdefault("last_test_command", None)
+    row.setdefault("sweep_result", None)
 
 output_path.parent.mkdir(parents=True, exist_ok=True)
 with open(output_path, "w", encoding="utf-8") as handle:
@@ -576,6 +579,7 @@ for header in (
     "c_recommended_ttft_ms",
     "c_recommended_tpot_ms",
     "last_test_command",
+    "sweep_result",
 ):
     if header not in headers:
         ws.cell(row=1, column=ws.max_column + 1).value = header
@@ -595,10 +599,11 @@ write_case_list_result() {
     local last_ttft_value="$7"
     local last_tpot_value="$8"
     local last_command_value="${9:-}"
+    local sweep_result_value="${10:-}"
 
     if case_list_is_json; then
         resolve_case_list_json_output
-        python3 - "${CASE_LIST_JSON_OUTPUT}" "${row_idx}" "${status_value}" "${notes_value}" "${c_recommended_value}" "${c_regular_value}" "${last_throughput_value}" "${last_ttft_value}" "${last_tpot_value}" "${last_command_value}" <<'PY'
+        python3 - "${CASE_LIST_JSON_OUTPUT}" "${row_idx}" "${status_value}" "${notes_value}" "${c_recommended_value}" "${c_regular_value}" "${last_throughput_value}" "${last_ttft_value}" "${last_tpot_value}" "${last_command_value}" "${sweep_result_value}" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
@@ -615,7 +620,8 @@ from pathlib import Path
     last_ttft_value,
     last_tpot_value,
     last_command_value,
-) = sys.argv[1:11]
+    sweep_result_value,
+) = sys.argv[1:12]
 
 row_idx = int(row_idx) - 1
 manifest_path = Path(path)
@@ -638,6 +644,7 @@ row["c_recommended_throughput"] = float(last_throughput_value) if last_throughpu
 row["c_recommended_ttft_ms"] = float(last_ttft_value) if last_ttft_value.strip() else None
 row["c_recommended_tpot_ms"] = float(last_tpot_value) if last_tpot_value.strip() else None
 row["last_test_command"] = last_command_value if last_command_value.strip() else None
+row["sweep_result"] = sweep_result_value if sweep_result_value.strip() else None
 
 with open(manifest_path, "w", encoding="utf-8") as handle:
     json.dump(rows, handle, indent=2, ensure_ascii=False)
@@ -646,7 +653,7 @@ PY
         return
     fi
 
-    python3 - "${CASE_LIST_XLSX}" "${CASE_LIST_SHEET}" "${row_idx}" "${status_value}" "${notes_value}" "${c_recommended_value}" "${c_regular_value}" "${last_throughput_value}" "${last_ttft_value}" "${last_tpot_value}" "${last_command_value}" <<'PY'
+    python3 - "${CASE_LIST_XLSX}" "${CASE_LIST_SHEET}" "${row_idx}" "${status_value}" "${notes_value}" "${c_recommended_value}" "${c_regular_value}" "${last_throughput_value}" "${last_ttft_value}" "${last_tpot_value}" "${last_command_value}" "${sweep_result_value}" <<'PY'
 import sys
 from datetime import datetime, timezone
 from openpyxl import load_workbook
@@ -663,7 +670,8 @@ from openpyxl import load_workbook
     last_ttft_value,
     last_tpot_value,
     last_command_value,
-) = sys.argv[1:12]
+    sweep_result_value,
+) = sys.argv[1:13]
 row_idx = int(row_idx)
 wb = load_workbook(path)
 ws = wb[sheet]
@@ -726,6 +734,8 @@ set_float("c_recommended_tpot_ms", last_tpot_value)
 
 if "last_test_command" in cols:
     ws.cell(row=row_idx, column=cols["last_test_command"]).value = last_command_value if last_command_value.strip() else None
+if "sweep_result" in cols:
+    ws.cell(row=row_idx, column=cols["sweep_result"]).value = sweep_result_value if sweep_result_value.strip() else None
 
 wb.save(path)
 PY
@@ -737,7 +747,7 @@ run_case_list() {
     local case_run_tag case_server_container case_server_extra_args case_log_dir
     local case_output_log result_marker_line marker_model marker_c_recommended marker_c_regular marker_recommendation
     local marker_last_throughput marker_last_ttft marker_last_tpot marker_last_command
-    local failure_note
+    local failure_note case_exit_code sweep_result_value
     local case_list_source_path
 
     case_list_source_path="$(get_case_list_source_path)"
@@ -801,7 +811,7 @@ run_case_list() {
             result_marker_line="$(grep '^RESULT_MARKER|' "${case_output_log}" | tail -n 1 || true)"
             if [[ -z "${result_marker_line}" ]]; then
                 failure_note="missing result marker; run_logs_dir=${case_log_dir}; wrapper_log=${case_output_log}; failure_context=${case_log_dir}/${case_run_tag}_failure_context.log; server_failure_snapshot=${case_log_dir}/${case_run_tag}_server_failure_snapshot.log"
-                write_case_list_result "${row_idx}" "FAIL" "${failure_note}" "" "" "" "" "" ""
+                write_case_list_result "${row_idx}" "FAIL" "${failure_note}" "" "" "" "" "" "" "fail_on_error"
                 echo "ERROR: missing result marker for case row=${row_idx}, model=${model_value}" >&2
                 if [[ "${CONTINUE_ON_CASE_FAILURE}" == "1" ]]; then
                     continue
@@ -810,7 +820,7 @@ run_case_list() {
             fi
 
             IFS='|' read -r _ marker_model marker_c_recommended marker_c_regular marker_recommendation marker_last_throughput marker_last_ttft marker_last_tpot marker_last_command <<< "${result_marker_line}"
-            write_case_list_result "${row_idx}" "PASS" "run_logs_dir=${case_log_dir}; recommendation=${marker_recommendation}; wrapper_log=${case_output_log}" "${marker_c_recommended}" "${marker_c_regular}" "${marker_last_throughput}" "${marker_last_ttft}" "${marker_last_tpot}" "${marker_last_command}"
+            write_case_list_result "${row_idx}" "PASS" "run_logs_dir=${case_log_dir}; recommendation=${marker_recommendation}; wrapper_log=${case_output_log}" "${marker_c_recommended}" "${marker_c_regular}" "${marker_last_throughput}" "${marker_last_ttft}" "${marker_last_tpot}" "${marker_last_command}" "pass"
             if case_list_is_json; then
                 echo "Updated json row=${row_idx} model=${marker_model} c_recommended=${marker_c_recommended} c_regular=${marker_c_regular} throughput=${marker_last_throughput} ttft_ms=${marker_last_ttft} tpot_ms=${marker_last_tpot} output=${CASE_LIST_JSON_OUTPUT}"
             else
@@ -818,9 +828,15 @@ run_case_list() {
             fi
             echo "Recommendation file: ${marker_recommendation}"
         else
-            failure_note="run_logs_dir=${case_log_dir}; wrapper_log=${case_output_log}; failure_context=${case_log_dir}/${case_run_tag}_failure_context.log; server_failure_snapshot=${case_log_dir}/${case_run_tag}_server_failure_snapshot.log"
-            write_case_list_result "${row_idx}" "FAIL" "${failure_note}" "" "" "" "" "" ""
-            echo "ERROR: case row=${row_idx} model=${model_value} failed" >&2
+            case_exit_code=$?
+            if [[ "${case_exit_code}" -eq "${SLA_GATE_FAILURE_EXIT_CODE}" ]]; then
+                sweep_result_value="fail_on_sla"
+            else
+                sweep_result_value="fail_on_error"
+            fi
+            failure_note="exit_code=${case_exit_code}; run_logs_dir=${case_log_dir}; wrapper_log=${case_output_log}; failure_context=${case_log_dir}/${case_run_tag}_failure_context.log; server_failure_snapshot=${case_log_dir}/${case_run_tag}_server_failure_snapshot.log"
+            write_case_list_result "${row_idx}" "FAIL" "${failure_note}" "" "" "" "" "" "" "${sweep_result_value}"
+            echo "ERROR: case row=${row_idx} model=${model_value} failed (${sweep_result_value})" >&2
             if [[ "${CONTINUE_ON_CASE_FAILURE}" == "1" ]]; then
                 continue
             fi
@@ -2517,10 +2533,11 @@ run_exponential_sweep() {
     if [[ -z "${best_concurrency}" ]]; then
         if [[ -n "${previous_stable}" ]]; then
             echo "ERROR: no concurrency point in the top-down sweep satisfied the SLA gate (sla_spec='${SLA_SPEC}' ttft_ms_max=${SLA_TTFT_MS_MAX:-none} tpot_ms_max=${SLA_TPOT_MS_MAX:-none})." >&2
+            exit "${SLA_GATE_FAILURE_EXIT_CODE}"
         else
             echo "ERROR: top-down sweep did not find a stable concurrency point." >&2
+            exit 1
         fi
-        exit 1
     fi
 
     if [[ -z "${exp_refine_preferred_side}" ]]; then
