@@ -43,16 +43,6 @@ on:
         required: false
         default: ''
         type: string
-      length_in:
-        description: Random input token length
-        required: false
-        default: '1024'
-        type: string
-      length_out:
-        description: Random output token length
-        required: false
-        default: '1024'
-        type: string
       cache_path:
         description: Optional cache root override mounted into containers
         required: false
@@ -158,8 +148,6 @@ jobs:
           export DTYPE='bfloat16'
           export DEVICE='cpu'
           export HARDWARE='emr'
-          export LENGTH_IN='${{ inputs.length_in }}'
-          export LENGTH_OUT='${{ inputs.length_out }}'
           export SERVER_EXTRA_ARGS='${{ inputs.server_extra_args }}'
           export RUN_FROM_CASE_LIST='1'
           export CONTINUE_ON_CASE_FAILURE='${{ inputs.continue_on_case_failure && '1' || '0' }}'
