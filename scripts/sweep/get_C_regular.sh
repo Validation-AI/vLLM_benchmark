@@ -1694,6 +1694,31 @@ capture_router_dp_logs() {
     done
 }
 
+kill_stale_router_dp_ports() {
+    # --net host means vllm-router/vllm-serve processes from a prior case's
+    # container can outlive that container's removal and keep squatting on
+    # our fixed router (8000) / worker (8001+) / prometheus (29000) ports,
+    # which makes the next case's router fail to start while a stale router
+    # silently answers readiness checks and 404s real requests. Best-effort
+    # kill anything still bound to those ports before starting a new case.
+    local -a stale_ports=(8000 29000)
+    local idx port
+
+    for ((idx=0; idx<${DP:-0}; idx++)); do
+        stale_ports+=("$((8001 + idx))")
+    done
+
+    for port in "${stale_ports[@]}"; do
+        fuser -k -TERM "${port}/tcp" >/dev/null 2>&1 || true
+        sudo -n fuser -k -TERM "${port}/tcp" >/dev/null 2>&1 || true
+    done
+    sleep 1
+    for port in "${stale_ports[@]}"; do
+        fuser -k -KILL "${port}/tcp" >/dev/null 2>&1 || true
+        sudo -n fuser -k -KILL "${port}/tcp" >/dev/null 2>&1 || true
+    done
+}
+
 start_server() {
     local server_args="$1"
     local inner_server_command
@@ -1705,6 +1730,7 @@ start_server() {
     if [[ "${DEVICE}" == "cpu" && "${DP_MODE}" == "router_dp" && ${DP} -gt 1 ]]; then
         launch_script="vllm_router_dp_launch.sh"
         rm -f "${REPO}/logs/router.log" "${REPO}/logs/router_worker_"*.log
+        kill_stale_router_dp_ports
         inner_server_command="cd /workspace && bash ${launch_script} '${MODEL}' '${DTYPE}' '${DEVICE}' '${TP}' '${ENGINE}' '${HARDWARE}' '${PIPELINE_PARALLEL}' '${server_args}' '${DP}'"
     else
         inner_server_command="cd /workspace && bash ${launch_script} '${MODEL}' '${DTYPE}' '${DEVICE}' '${TP}' '${ENGINE}' '${HARDWARE}' '${PIPELINE_PARALLEL}' '${server_args}'"

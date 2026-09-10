@@ -396,10 +396,17 @@ done
 
 echo "ROUTER_DP_WORKERS_READY"
 
+# vllm-router's --prometheus-port defaults to a fixed 29000 regardless of
+# whether it's passed; randomize it per-invocation so a stray process still
+# holding 29000 (e.g. from an earlier case that wasn't fully cleaned up)
+# can't make this router panic on startup.
+router_prometheus_port=$((20000 + (($$ + RANDOM) % 10000)))
+
 vllm-router \
   --worker-urls "${urls[@]}" \
   --policy round_robin \
   --port "${router_port}" \
+  --prometheus-port "${router_prometheus_port}" \
   --intra-node-data-parallel-size 1 > /workspace/logs/router.log 2>&1 &
 router_pid=$!
 pids+=("$router_pid")
