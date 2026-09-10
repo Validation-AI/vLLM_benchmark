@@ -164,7 +164,7 @@ jobs:
 
           bash "${WORKSPACE}/scripts/sweep/get_C_regular.sh"
 
-      - name: Persist manifest results
+      - name: Persist sweep results
         if: always()
         shell: bash
         run: |
@@ -178,32 +178,33 @@ jobs:
             exit 0
           fi
 
-          new_manifest_path="${manifest_path%.json}.new.json"
-          if [[ ! -f "${new_manifest_path}" ]]; then
-            echo "No updated manifest found at ${new_manifest_path}; skip auto-commit."
+          # Results live in a sibling file; the source manifest itself is never rewritten.
+          results_rel="${manifest_rel%.json}.new.json"
+          results_path="${manifest_path%.json}.new.json"
+          if [[ ! -f "${results_path}" ]]; then
+            echo "No results file found at ${results_path}; skip auto-commit."
             exit 0
           fi
-
-          cp "${new_manifest_path}" "${manifest_path}"
 
           cd "${WORKSPACE}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          if git diff --quiet -- "${manifest_rel}"; then
-            echo "No manifest changes to commit."
+          git add "${results_rel}"
+          if git diff --cached --quiet -- "${results_rel}"; then
+            echo "No results changes to commit."
+            git restore --staged -- "${results_rel}" 2>/dev/null || true
             exit 0
           fi
 
-          git add "${manifest_rel}"
-          git commit -m "Update ${manifest_rel} from cpu-get-c-regular run #${{ github.run_number }}"
+          git commit -m "Update ${results_rel} from cpu-get-c-regular run #${{ github.run_number }}"
 
           if ! git push origin "HEAD:${GITHUB_REF_NAME}"; then
             echo "Push rejected; fetching + rebasing once before retrying." >&2
             git fetch origin "${GITHUB_REF_NAME}"
             if ! git rebase "origin/${GITHUB_REF_NAME}"; then
               git rebase --abort
-              echo "ERROR: rebase conflict; push the manifest update manually." >&2
+              echo "ERROR: rebase conflict; push the results update manually." >&2
               exit 1
             fi
             git push origin "HEAD:${GITHUB_REF_NAME}"
