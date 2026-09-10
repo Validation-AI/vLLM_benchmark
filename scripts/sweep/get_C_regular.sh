@@ -85,6 +85,12 @@ resolve_benchmark_transport() {
         return
     fi
 
+    if [[ -z "${BENCH_BACKEND}" && "${DP_MODE}" == "router_dp" ]]; then
+        # vllm-router only forwards /v1/chat/completions; the legacy /v1/completions
+        # route 404s when requests are proxied through it.
+        BENCH_BACKEND='openai-chat'
+    fi
+
     BENCH_BACKEND=${BENCH_BACKEND:-vllm}
     if [[ -z "${BENCH_ENDPOINT}" ]]; then
         case "${BENCH_BACKEND}" in
