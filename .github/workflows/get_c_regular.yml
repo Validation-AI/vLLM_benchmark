@@ -55,7 +55,7 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   get-c-regular:
@@ -163,6 +163,51 @@ jobs:
           echo "Case-list model filter: ${CASE_LIST_MODEL_FILTER}"
 
           bash "${WORKSPACE}/scripts/sweep/get_C_regular.sh"
+
+      - name: Persist manifest results
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          manifest_rel='${{ inputs.case_list_xlsx }}'
+          manifest_path="${WORKSPACE}/${manifest_rel}"
+
+          if [[ "${manifest_rel,,}" != *.json ]]; then
+            echo "Manifest is not JSON (${manifest_rel}); skip auto-commit."
+            exit 0
+          fi
+
+          new_manifest_path="${manifest_path%.json}.new.json"
+          if [[ ! -f "${new_manifest_path}" ]]; then
+            echo "No updated manifest found at ${new_manifest_path}; skip auto-commit."
+            exit 0
+          fi
+
+          cp "${new_manifest_path}" "${manifest_path}"
+
+          cd "${WORKSPACE}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git diff --quiet -- "${manifest_rel}"; then
+            echo "No manifest changes to commit."
+            exit 0
+          fi
+
+          git add "${manifest_rel}"
+          git commit -m "Update ${manifest_rel} from cpu-get-c-regular run #${{ github.run_number }}"
+
+          if ! git push origin "HEAD:${GITHUB_REF_NAME}"; then
+            echo "Push rejected; fetching + rebasing once before retrying." >&2
+            git fetch origin "${GITHUB_REF_NAME}"
+            if ! git rebase "origin/${GITHUB_REF_NAME}"; then
+              git rebase --abort
+              echo "ERROR: rebase conflict; push the manifest update manually." >&2
+              exit 1
+            fi
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
 
       - name: Upload get_c_regular logs
         if: always()
