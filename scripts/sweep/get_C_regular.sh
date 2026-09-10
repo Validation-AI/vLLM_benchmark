@@ -197,6 +197,28 @@ next_descending_concurrency() {
     echo "${next}"
 }
 
+# Doubling step used by the bottom-up SLA-first sweep, capped at concurrency_upper_limit.
+next_ascending_concurrency() {
+    local current="$1"
+    local next
+
+    if ! [[ "${current}" =~ ^[0-9]+$ ]] || (( current < 1 )); then
+        echo 1
+        return
+    fi
+
+    next=$((current * 2))
+    if (( next > concurrency_upper_limit )); then
+        next="${concurrency_upper_limit}"
+    fi
+    if (( next <= current )); then
+        echo 0
+        return
+    fi
+
+    echo "${next}"
+}
+
 normalize_spaces() {
     echo "$*" | sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//'
 }
@@ -2073,10 +2095,6 @@ record_run() {
     phase_map[$concurrency]="${phase}"
     log_map[$concurrency]="${log_file}"
 
-    if [[ -z "${best_concurrency}" ]]; then
-        best_concurrency="${concurrency}"
-    fi
-
     echo "${phase},${concurrency},${num_prompt},${num_warmups},${max_concurrency},${request_rate},${request_throughput},${output_token_throughput},${mean_ttft},${mean_tpot}" >> "${summary_csv}"
     echo "phase=${phase} concurrency=${concurrency} req/s=${request_throughput} tok/s=${output_token_throughput} TTFT=${mean_ttft} TPOT=${mean_tpot}"
 }
@@ -2491,14 +2509,15 @@ run_exponential_sweep() {
             break
         fi
 
-        if [[ -n "${best_concurrency}" ]] && ! sla_violated "${concurrency}" && should_promote_stable_best "${concurrency}" "${best_concurrency}"; then
-            best_concurrency="${concurrency}"
+        # A candidate can only become/replace best_concurrency once it clears the SLA gate;
+        # an empty best_concurrency must never be filled by an SLA-violating point.
+        if ! sla_violated "${concurrency}"; then
+            if [[ -z "${best_concurrency}" ]] || should_promote_stable_best "${concurrency}" "${best_concurrency}"; then
+                best_concurrency="${concurrency}"
+            fi
         fi
 
         if [[ -z "${previous_stable}" ]]; then
-            if ! sla_violated "${concurrency}"; then
-                best_concurrency="${concurrency}"
-            fi
             previous_stable="${concurrency}"
             if [[ -n "${first_failed_above}" ]]; then
                 exp_refine_low="${concurrency}"
@@ -2555,6 +2574,85 @@ run_exponential_sweep() {
     fi
 
     echo "Top-down sweep best so far: C=${best_concurrency} tok/s=${output_token_throughput_map[$best_concurrency]}"
+    echo "Refine interval: [${exp_refine_low}, ${exp_refine_high}] preferred_side=${exp_refine_preferred_side}"
+}
+
+# When an SLA gate is active, latency degrades ~monotonically as concurrency grows, so
+# testing bottom-up finds the SLA breaking point (and stops) without paying for expensive,
+# doomed-to-fail runs near concurrency_upper_limit. Falls back to top-down (run_exponential_sweep)
+# when no SLA is configured, since throughput-peak detection still needs a ceiling-down scan.
+run_ascending_sla_sweep() {
+    local concurrency=1
+    local next_concurrency=''
+    local previous_stable=''
+
+    exp_refine_low=''
+    exp_refine_high=''
+    exp_refine_preferred_side=''
+
+    while (( concurrency <= concurrency_upper_limit )); do
+        if ! run_sweep_point_with_confirmation \
+            sweep_exp \
+            "${concurrency}" \
+            "${concurrency}" \
+            "${concurrency}" \
+            "${concurrency}" \
+            "${REQUEST_RATE}" \
+            "${LOG_FILE_PREFIX}_sweep_exp_c${concurrency}"; then
+            if [[ -z "${previous_stable}" ]]; then
+                echo "ERROR: bottom-up sweep failed at the very first concurrency=${concurrency}." >&2
+                exit 1
+            fi
+            exp_refine_low="${previous_stable}"
+            exp_refine_high="${concurrency}"
+            exp_refine_preferred_side='lower'
+            restart_server_for_phase sweep "${concurrency_upper_limit}"
+            break
+        fi
+
+        # A candidate can only become/replace best_concurrency once it clears the SLA gate;
+        # an empty best_concurrency must never be filled by an SLA-violating point.
+        if ! sla_violated "${concurrency}"; then
+            if [[ -z "${best_concurrency}" ]] || should_promote_stable_best "${concurrency}" "${best_concurrency}"; then
+                best_concurrency="${concurrency}"
+            fi
+        fi
+
+        if point_exceeds_limit "${concurrency}" "${previous_stable}"; then
+            if [[ -z "${previous_stable}" ]]; then
+                echo "ERROR: no concurrency point in the bottom-up sweep satisfied the SLA gate (sla_spec='${SLA_SPEC}' ttft_ms_max=${SLA_TTFT_MS_MAX:-none} tpot_ms_max=${SLA_TPOT_MS_MAX:-none})." >&2
+                exit "${SLA_GATE_FAILURE_EXIT_CODE}"
+            fi
+            exp_refine_low="${previous_stable}"
+            exp_refine_high="${concurrency}"
+            exp_refine_preferred_side='lower'
+            break
+        fi
+
+        previous_stable="${concurrency}"
+        if (( concurrency >= concurrency_upper_limit )); then
+            break
+        fi
+
+        next_concurrency="$(next_ascending_concurrency "${concurrency}")"
+        if (( next_concurrency <= concurrency )); then
+            break
+        fi
+        concurrency="${next_concurrency}"
+    done
+
+    if [[ -z "${best_concurrency}" ]]; then
+        echo "ERROR: bottom-up sweep did not find a stable concurrency point." >&2
+        exit 1
+    fi
+
+    if [[ -z "${exp_refine_preferred_side}" ]]; then
+        echo "Bottom-up sweep did not find a narrower bracket; skip directional refine."
+        echo "Bottom-up sweep best so far: C=${best_concurrency} tok/s=${output_token_throughput_map[$best_concurrency]}"
+        return
+    fi
+
+    echo "Bottom-up sweep best so far: C=${best_concurrency} tok/s=${output_token_throughput_map[$best_concurrency]}"
     echo "Refine interval: [${exp_refine_low}, ${exp_refine_high}] preferred_side=${exp_refine_preferred_side}"
 }
 
@@ -2677,7 +2775,11 @@ echo "Using benchmark model: ${BENCH_MODEL}"
 best_concurrency=''
 
 restart_server_for_phase sweep "${concurrency_upper_limit}"
-run_exponential_sweep
+if [[ -n "${SLA_TTFT_MS_MAX:-}" || -n "${SLA_TPOT_MS_MAX:-}" ]]; then
+    run_ascending_sla_sweep
+else
+    run_exponential_sweep
+fi
 binary_refine_interval "${exp_refine_low}" "${exp_refine_high}" "${exp_refine_preferred_side:-lower}"
 finalize_recommendation
 update_c_regular_file
