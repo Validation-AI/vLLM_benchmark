@@ -52,6 +52,9 @@ CASE_LIST_MODEL_FILTER=${CASE_LIST_MODEL_FILTER:-}
 CASE_LIST_JSON_OUTPUT=${CASE_LIST_JSON_OUTPUT:-}
 BENCH_BACKEND=${BENCH_BACKEND:-}
 BENCH_ENDPOINT=${BENCH_ENDPOINT:-}
+BENCH_DATASET_NAME=${BENCH_DATASET_NAME:-}
+BENCH_DATASET_EXTRA_ARGS=${BENCH_DATASET_EXTRA_ARGS:-}
+BENCH_SAMPLING_ARGS=${BENCH_SAMPLING_ARGS:-}
 BENCH_USE_EXPLICIT_TOKENIZER=${BENCH_USE_EXPLICIT_TOKENIZER:-0}
 
 if [[ "${VALIDATE_OUTPUT_LAYOUT_ONLY}" != "1" && -z "${HF_TOKEN_FOR_SCRIPT:-}" ]]; then
@@ -85,7 +88,22 @@ resolve_benchmark_transport() {
         return
     fi
 
-    BENCH_BACKEND=${BENCH_BACKEND:-vllm}
+    # Auto-detect backend from MODEL for known ASR/Reranker categories so
+    # non-completions models don't silently fall through to /v1/completions.
+    if [[ -z "${BENCH_BACKEND}" ]]; then
+        case "${MODEL}" in
+            openai/whisper*)
+                BENCH_BACKEND='openai-audio'
+                ;;
+            *bge-reranker*)
+                BENCH_BACKEND='vllm-rerank'
+                ;;
+            *)
+                BENCH_BACKEND='vllm'
+                ;;
+        esac
+    fi
+
     if [[ -z "${BENCH_ENDPOINT}" ]]; then
         case "${BENCH_BACKEND}" in
             openai)
@@ -97,8 +115,44 @@ resolve_benchmark_transport() {
             openai-audio)
                 BENCH_ENDPOINT='/v1/audio/transcriptions'
                 ;;
+            vllm-rerank)
+                BENCH_ENDPOINT='/v1/rerank'
+                ;;
             *)
                 BENCH_ENDPOINT=''
+                ;;
+        esac
+    fi
+
+    if [[ -z "${BENCH_DATASET_NAME}" ]]; then
+        case "${BENCH_BACKEND}" in
+            openai-audio)
+                # ASR needs real audio samples; the random token dataset
+                # produces no audio and cannot be transcribed.
+                BENCH_DATASET_NAME='hf'
+                BENCH_DATASET_EXTRA_ARGS=${BENCH_DATASET_EXTRA_ARGS:---dataset-path edinburghcstr/ami --hf-subset ihm --hf-split test}
+                ;;
+            vllm-rerank)
+                BENCH_DATASET_NAME='random-rerank'
+                ;;
+            *)
+                BENCH_DATASET_NAME='random'
+                ;;
+        esac
+    fi
+
+    if [[ -z "${BENCH_SAMPLING_ARGS}" ]]; then
+        case "${BENCH_BACKEND}" in
+            openai-audio)
+                # vllm bench serve rejects sampling params (e.g. temperature)
+                # for backends outside OPENAI_COMPATIBLE_BACKENDS.
+                BENCH_SAMPLING_ARGS=''
+                ;;
+            vllm-rerank)
+                BENCH_SAMPLING_ARGS=''
+                ;;
+            *)
+                BENCH_SAMPLING_ARGS='--temperature 0'
                 ;;
         esac
     fi
@@ -980,6 +1034,7 @@ if [[ -n "${VLLM_CPU_KVCACHE_SPACE}" ]]; then
 fi
 echo "Using benchmark backend: ${BENCH_BACKEND}"
 echo "Using benchmark endpoint: ${BENCH_ENDPOINT}"
+echo "Using benchmark dataset: ${BENCH_DATASET_NAME} ${BENCH_DATASET_EXTRA_ARGS}"
 if [[ -n "${SLA_TTFT_MS_MAX}" || -n "${SLA_TPOT_MS_MAX}" ]]; then
     echo "Using SLA gate: sla_spec='${SLA_SPEC}' ttft_ms_max=${SLA_TTFT_MS_MAX:-none} tpot_ms_max=${SLA_TPOT_MS_MAX:-none}"
 else
@@ -2186,7 +2241,7 @@ BENCH_CMD=(
     vllm bench serve
     --backend '${BENCH_BACKEND}'
     --model '${BENCH_MODEL}'
-    --dataset-name random
+    --dataset-name ${BENCH_DATASET_NAME}
     --random-input-len ${LENGTH_IN}
     --random-output-len ${LENGTH_OUT}
     --ignore-eos
@@ -2197,7 +2252,8 @@ BENCH_CMD=(
     --port 8000
     --host 127.0.0.1
     --max-concurrency ${max_concurrency}
-    --temperature 0
+    ${BENCH_SAMPLING_ARGS}
+    ${BENCH_DATASET_EXTRA_ARGS}
 )
 if [[ -n '${BENCH_ENDPOINT}' ]]; then
     BENCH_CMD+=(--endpoint '${BENCH_ENDPOINT}')
@@ -2214,7 +2270,7 @@ fi
 EOF
 )
 
-    local recorded_bench_flags="--backend ${BENCH_BACKEND} --model ${BENCH_MODEL} --dataset-name random --random-input-len ${LENGTH_IN} --random-output-len ${LENGTH_OUT} --ignore-eos --trust-remote-code --num-prompt ${num_prompt} --num-warmups ${num_warmups} --request-rate ${request_rate} --port 8000 --host 127.0.0.1 --max-concurrency ${max_concurrency} --temperature 0"
+    local recorded_bench_flags="--backend ${BENCH_BACKEND} --model ${BENCH_MODEL} --dataset-name ${BENCH_DATASET_NAME} --random-input-len ${LENGTH_IN} --random-output-len ${LENGTH_OUT} --ignore-eos --trust-remote-code --num-prompt ${num_prompt} --num-warmups ${num_warmups} --request-rate ${request_rate} --port 8000 --host 127.0.0.1 --max-concurrency ${max_concurrency} ${BENCH_SAMPLING_ARGS} ${BENCH_DATASET_EXTRA_ARGS}"
     if [[ -n "${BENCH_ENDPOINT}" ]]; then
         recorded_bench_flags+=" --endpoint ${BENCH_ENDPOINT}"
     fi
