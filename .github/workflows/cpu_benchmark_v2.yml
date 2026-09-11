@@ -1,0 +1,767 @@
+name: cpu-vllm-benchmark-v2
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner_labels:
+        required: true
+        default: '["cpu_benchmark"]'
+        type: string
+      node_label:
+        description: "Optional single runner label to pin the job to one node (typically the runner name). When set, the job runs ONLY on this label. Leave empty to use runner_labels instead."
+        required: false
+        default: ""
+        type: string
+      default_dtype:
+        required: false
+        default: bfloat16
+        type: string
+      benchmark_script:
+        required: false
+        default: serving_tuning
+        type: choice
+        options:
+          - serving_tuning
+      manifest_json:
+        description: "JSON manifest file (relative to the repo root) to read the model matrix from."
+        required: false
+        default: automation_v2.json
+        type: string
+      engine_type:
+        required: false
+        default: v1
+        type: string
+      hardware:
+        required: false
+        default: gnr
+        type: string
+      base_extra_args:
+        required: false
+        default: "--trust-remote-code --no-enable-prefix-caching --max-num-batched-tokens=16384 --gpu-memory-utilization=0.8"
+        type: string
+      vllm_cpu_kvcache_space:
+        required: false
+        default: ""
+        type: string
+      cpu_visible_memory_nodes:
+        required: false
+        default: ""
+        type: string
+      router_startup_timeout_s:
+        required: false
+        default: 3600
+        type: string
+      test_mode:
+        required: false
+        default: performance
+        type: string
+      tuning_slas:
+        required: false
+        default: "100,5000"
+        type: string
+      docker_name:
+        required: true
+        default: v0.24.0
+        type: string
+      openai_api_base:
+        required: false
+        default: http://0.0.0.0:8000/v1
+        type: string
+      length_configs:
+        description: "input/output length config(s), comma-separated for multiple (e.g. 1024/1024). Leave empty to use each manifest row's input/output values."
+        required: false
+        default: ""
+        type: string
+      max_concurrency:
+        required: false
+        default: default
+        type: string
+      bs_ratio:
+        description: "Multiplier applied to the persisted batch size in perf_fixed_batch_vllm.sh (batch_size = persisted_batch_size * bs_ratio)."
+        required: false
+        default: "5"
+        type: string
+      tp_backbone:
+        required: false
+        default: mp
+        type: string
+      row_filter:
+        required: false
+        default: ""
+        type: string
+      session_id:
+        description: "To continue a previous run, enter that run's number (the #NN shown in the Actions run list). Leave empty to start a new session keyed by this run's number."
+        required: false
+        default: ""
+        type: string
+
+
+permissions:
+  contents: read
+
+jobs:
+  manifest:
+    # If node_label is set, run ONLY on that label (pins to one node). Otherwise
+    # use runner_labels (random pick among runners carrying those labels).
+    runs-on: ${{ inputs.node_label != '' && fromJSON(format('["{0}"]', inputs.node_label)) || fromJSON(inputs.runner_labels || '["self-hosted","linux","x64"]') }}
+    # GitHub's default job timeout is 360 min (6h). This self-hosted job can run
+    # the full model matrix well past that, so raise the cap. Increase further
+    # if a run still gets terminated for exceeding the limit.
+    timeout-minutes: 4320
+    env:
+      WORKSPACE: ${{ github.workspace }}
+      NODE_LABEL: "${{ inputs.node_label }}"
+      DEFAULT_DTYPE: ${{ inputs.default_dtype }}
+      BENCHMARK_SCRIPT: ${{ inputs.benchmark_script }}
+      MANIFEST_JSON: ${{ inputs.manifest_json }}
+      ENGINE_TYPE: ${{ inputs.engine_type }}
+      HARDWARE: ${{ inputs.hardware }}
+      BASE_EXTRA_ARGS: ${{ inputs.base_extra_args }}
+      DEVICE: ${{ 'cpu' }}
+      VLLM_CPU_KVCACHE_SPACE: ${{ inputs.vllm_cpu_kvcache_space }}
+      CPU_VISIBLE_MEMORY_NODES: ${{ inputs.cpu_visible_memory_nodes }}
+      ROUTER_STARTUP_TIMEOUT_S: ${{ inputs.router_startup_timeout_s }}
+      BACKEND: ${{ 'vllm' }}
+      DATASET: ${{ 'dummy' }}
+      TEST_MODE: ${{ inputs.test_mode }}
+      TUNING_SLAS: ${{ inputs.tuning_slas }}
+      DOCKER_NAME: ${{ inputs.docker_name }}
+      OPENAI_API_BASE: ${{ inputs.openai_api_base }}
+      LENGTH_CONFIGS: ${{ inputs.length_configs }}
+      MAX_CONCURRENCY: ${{ inputs.max_concurrency }}
+      BS_RATIO: ${{ inputs.bs_ratio }}
+      TP_BACKBONE: ${{ inputs.tp_backbone }}
+      ROW_FILTER: ${{ inputs.row_filter }}
+      SESSION_ID: ${{ inputs.session_id }}
+      BUILD_NUMBER: ${{ github.run_number }}
+      BUILD_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
+      HF_TOKEN_FOR_SCRIPT: ${{ secrets.HF_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Clean up stale vLLM containers
+        shell: bash
+        run: |
+          set -uo pipefail
+          # Remove any vLLM benchmark containers left over from previous builds
+          # (e.g. a run that failed before its cleanup step). A running container
+          # cannot be removed directly, so stop each one first, then remove it.
+          stale=$(docker ps -aq --filter "name=^/vllm-" || true)
+          if [[ -n "${stale}" ]]; then
+            echo "Cleaning up stale containers:"
+            docker ps -a --filter "name=^/vllm-" --format '  {{.Names}} ({{.Status}})' || true
+            for cid in ${stale}; do
+              docker stop "${cid}" >/dev/null 2>&1 || true
+              docker rm -f "${cid}" >/dev/null 2>&1 || true
+            done
+          else
+            echo "No stale vLLM containers found."
+          fi
+
+      - name: Install Python dependency
+        shell: bash
+        run: python3 -m pip install --user --quiet openpyxl
+
+      - name: Print workflow configuration
+        shell: bash
+        run: |
+          set -uo pipefail
+          echo "=== cpu-vllm-benchmark configuration ==="
+          echo 'runner_labels            = ${{ inputs.runner_labels }}'
+          echo "node_label               = ${NODE_LABEL:-<none: random runner>}"
+          echo "runner_name              = ${RUNNER_NAME:-<unknown>}"
+          echo "default_dtype            = ${DEFAULT_DTYPE}"
+          echo "benchmark_script         = ${BENCHMARK_SCRIPT}"
+          echo "manifest_json            = ${MANIFEST_JSON}"
+          echo "engine_type              = ${ENGINE_TYPE}"
+          echo "hardware                 = ${HARDWARE}"
+          echo "device                   = ${DEVICE}"
+          echo "base_extra_args          = ${BASE_EXTRA_ARGS}"
+          echo "vllm_cpu_kvcache_space   = ${VLLM_CPU_KVCACHE_SPACE}"
+          echo "cpu_visible_memory_nodes = ${CPU_VISIBLE_MEMORY_NODES}"
+          echo "router_startup_timeout_s = ${ROUTER_STARTUP_TIMEOUT_S}"
+          echo "backend                  = ${BACKEND}"
+          echo "dataset                  = ${DATASET}"
+          echo "test_mode                = ${TEST_MODE}"
+          echo "tuning_slas              = ${TUNING_SLAS}"
+          echo "docker_name              = ${DOCKER_NAME}"
+          echo "openai_api_base          = ${OPENAI_API_BASE}"
+          echo "length_configs           = ${LENGTH_CONFIGS}"
+          echo "max_concurrency          = ${MAX_CONCURRENCY}"
+          echo "bs_ratio                 = ${BS_RATIO}"
+          echo "tp_backbone              = ${TP_BACKBONE}"
+          echo "row_filter               = ${ROW_FILTER}"
+          echo "session_id (input)       = ${SESSION_ID:-<auto: run number>}"
+          echo "build_number             = ${BUILD_NUMBER}"
+          echo "build_url                = ${BUILD_URL}"
+          echo "hf_token                 = $([[ -n "${HF_TOKEN_FOR_SCRIPT:-}" ]] && echo 'set' || echo '<empty>')"
+
+      - name: Run manifest tuning
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          is_true() {
+            case "${1:-}" in
+              true|True|TRUE|1|yes|YES) return 0 ;;
+              *) return 1 ;;
+            esac
+          }
+
+          split_csv() {
+            local value="${1:-}"
+            local fallback="${2:-}"
+            local source="${value:-}"
+            source="${source#\"}"
+            source="${source%\"}"
+            source="${source#\'}"
+            source="${source%\'}"
+            if [[ -z "${source//[$'\t\r\n ']/}" ]]; then
+              source="${fallback}"
+            fi
+            if [[ -z "${source//[$'\t\r\n ']/}" ]]; then
+              return 0
+            fi
+            IFS=',' read -r -a items <<< "${source}"
+            for item in "${items[@]}"; do
+              item="${item//[$'\t\r\n ']/}"
+              [[ -n "${item}" ]] && printf '%s\n' "${item}"
+            done
+          }
+
+
+
+          wait_for_server() {
+            local container_name="$1"
+            local dp_mode="$2"
+            local dp_size="$3"
+            local timeout_s="$4"
+            local start_ts
+            start_ts=$(date +%s)
+            local worker_base_port=8001
+            local worker_last_port=$((worker_base_port + dp_size - 1))
+            local setup_complete=0
+            local workers_ready=0
+            local setup_deadline=$((start_ts + timeout_s))
+            local readiness_deadline=0
+
+            while true; do
+              if ! docker ps --filter "name=${container_name}" --format '{{.Status}}' | grep -q "Up"; then
+                docker logs "${container_name}" | tail -n 200 || true
+                return 1
+              fi
+
+              recent_logs="$(docker logs --tail 1200 "${container_name}" 2>&1 || true)"
+              if echo "${recent_logs}" | grep -qE 'ValueError: too many values to unpack|MLA is not supported on CPU|WorkerProc failed to start|Engine core initialization failed|RuntimeError: Engine process failed to start|RPCServer process died before responding to readiness probe|UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY|UR_RESULT_ERROR_DEVICE_LOST|Fatal Python error: Segmentation fault|Traceback (most recent call last):'; then
+                docker logs "${container_name}" | tail -n 200 || true
+                return 1
+              fi
+
+              if [[ "${dp_mode}" == "router_dp" ]]; then
+                if [[ ${setup_complete} -ne 1 ]]; then
+                  if echo "${recent_logs}" | grep -q "ROUTER_DP_SETUP_COMPLETE"; then
+                    setup_complete=1
+                    readiness_deadline=$(( $(date +%s) + timeout_s + 60 ))
+                  else
+                    if [[ $(date +%s) -ge ${setup_deadline} ]]; then
+                      docker logs "${container_name}" | tail -n 200 || true
+                      return 1
+                    fi
+                    sleep 5
+                    continue
+                  fi
+                fi
+
+                if [[ ${workers_ready} -ne 1 ]]; then
+                  if echo "${recent_logs}" | grep -q "ROUTER_DP_WORKERS_READY"; then
+                    workers_ready=1
+                  else
+                    all_workers_ready=1
+                    for worker_port in $(seq ${worker_base_port} ${worker_last_port}); do
+                      if ! curl --noproxy '*' -sSf "http://127.0.0.1:${worker_port}/v1/models" >/dev/null; then
+                        all_workers_ready=0
+                        break
+                      fi
+                    done
+                    if [[ ${all_workers_ready} -eq 1 ]]; then
+                      workers_ready=1
+                    else
+                      if [[ $(date +%s) -ge ${readiness_deadline} ]]; then
+                        docker logs "${container_name}" | tail -n 200 || true
+                        return 1
+                      fi
+                      sleep 5
+                      continue
+                    fi
+                  fi
+                fi
+
+                if curl --noproxy '*' -sSf http://127.0.0.1:8000/v1/models >/dev/null; then
+                  return 0
+                fi
+                if [[ $(date +%s) -ge ${readiness_deadline} ]]; then
+                  docker logs "${container_name}" | tail -n 200 || true
+                  return 1
+                fi
+                sleep 5
+                continue
+              fi
+
+              if curl --noproxy '*' -sSf http://127.0.0.1:8000/v1/models >/dev/null; then
+                return 0
+              fi
+
+              if [[ $(date +%s) -ge ${setup_deadline} ]]; then
+                docker logs "${container_name}" | tail -n 200 || true
+                return 1
+              fi
+              sleep 5
+            done
+          }
+
+          docker_image="vllm/vllm-openai-cpu:${DOCKER_NAME}"
+          manifest_path="${WORKSPACE}/${MANIFEST_JSON:-automation_v2.json}"
+          rows_json="${WORKSPACE}/automation/generated/serving_tuning_rows.json"
+          state_file="${WORKSPACE}/automation/history/serving_tuning/latest/row_state.json"
+          legacy_state_file="${WORKSPACE}/automation/generated/writeback_state.json"
+
+          if ! [[ -f "${manifest_path}" ]]; then
+            echo "Manifest json file not found: ${manifest_path}"
+            exit 1
+          fi
+
+          mkdir -p "${WORKSPACE}/logs/row_results" "${WORKSPACE}/automation/reports/serving_tuning" "${WORKSPACE}/automation/generated"
+          : > "${WORKSPACE}/logs/summary.log"
+
+          # Durable per-row state for resumable runs. It lives OUTSIDE the
+          # checkout (which actions/checkout cleans) so it survives job
+          # cancellation and a fresh checkout in a follow-up run. Each completed
+          # row is copied here immediately; a later run that reuses the printed
+          # SESSION_ID restores these results and skips those rows.
+          session_id="${SESSION_ID:-}"
+          if [[ -z "${session_id//[$'\t\r\n ']/}" ]]; then
+            session_id="${GITHUB_RUN_NUMBER:-${BUILD_NUMBER:-$$}}"
+          fi
+          persist_root="${RUNNER_WORKSPACE:-${WORKSPACE}/..}/vllm_bench_sessions/${session_id}"
+          persist_results="${persist_root}/row_results"
+          persist_server_logs="${persist_root}/server_logs"
+          mkdir -p "${persist_results}" "${persist_server_logs}"
+          echo "SESSION_ID=${session_id}" | tee -a "${WORKSPACE}/logs/summary.log"
+          echo "To continue this run later, re-run the workflow with session_id=${session_id} (completed rows will be skipped)."
+          # Restore previously completed rows so the final compile/writeback
+          # covers the whole matrix, not only the rows this run executed.
+          cp -f "${persist_results}"/*.json "${WORKSPACE}/logs/row_results/" 2>/dev/null || true
+          # Restore previously saved per-model server logs too.
+          mkdir -p "${WORKSPACE}/logs/server_logs"
+          cp -rf "${persist_server_logs}"/. "${WORKSPACE}/logs/server_logs/" 2>/dev/null || true
+
+          # Build args as an array so values with commas/special chars (e.g. a
+          # multi-model --row-filter) are passed verbatim. The previous
+          # printf '%q' inside an unquoted $() escaped commas as "\," and broke
+          # the model list, so only the last model was matched.
+          read_manifest_args=(--input-format json --json "${manifest_path}" --output "${rows_json}")
+          if [[ -f "${state_file}" ]]; then
+            read_manifest_args+=(--state-file "${state_file}")
+          elif [[ -f "${legacy_state_file}" ]]; then
+            read_manifest_args+=(--state-file "${legacy_state_file}")
+          fi
+          if [[ -n "${ROW_FILTER}" ]]; then
+            read_manifest_args+=(--row-filter "${ROW_FILTER}")
+          fi
+          python3 "${WORKSPACE}/automation/read_excel_manifest_v2.py" "${read_manifest_args[@]}"
+
+
+          wait_for_container() {
+            local container_name="$1"
+            local row_id="$2"
+            local dp_mode="$3"
+            local dp_size="$4"
+            wait_for_server "${container_name}" "${dp_mode}" "${dp_size}" "${ROUTER_STARTUP_TIMEOUT_S}"
+          }
+
+          # Record a failed row so one unhealthy/slow server does not abort the
+          # whole matrix. Writes the same result-JSON schema the client emits so
+          # the compile/writeback steps still see the row.
+          write_row_error_result() {
+            local out_path="$1" row_id="$2" model_id="$3" tp="$4" pp="$5" dp="$6" dp_mode="$7" dtype="$8" hardware="$9" length_config="${10}" status="${11}" error="${12}"
+            python3 -c 'import json,sys; from pathlib import Path; (out_path,row_id,model_id,tp,pp,dp,dp_mode,dtype,hardware,length_config,status,error)=sys.argv[1:]; payload={"row_id":row_id,"model_id":model_id,"tp":int(tp) if str(tp).isdigit() else tp,"pp":int(pp) if str(pp).isdigit() else pp,"dp":int(dp) if str(dp).isdigit() else dp,"dp_mode":dp_mode,"dtype":dtype,"hardware":hardware,"length_config":length_config,"status":status,"best_batch_size":"","throughput":"","ttft_ms":"","tpot_ms":"","error":error}; p=Path(out_path); p.parent.mkdir(parents=True, exist_ok=True); p.write_text(json.dumps(payload, indent=2))' "$out_path" "$row_id" "$model_id" "$tp" "$pp" "$dp" "$dp_mode" "$dtype" "$hardware" "$length_config" "$status" "$error"
+          }
+
+          # Snapshot this row's server-side logs into a per-model folder so the
+          # next model does not overwrite the generic router/worker/server log
+          # filenames the launch scripts reuse (router.log, router_worker_*.log).
+          snapshot_server_logs() {
+            local sid="$1" cname="$2"
+            local out_dir="${WORKSPACE}/logs/server_logs/${sid}"
+            mkdir -p "${out_dir}"
+            docker logs "${cname}" > "${out_dir}/container.log" 2>&1 || true
+            local f
+            for f in "${WORKSPACE}"/logs/router.log "${WORKSPACE}"/logs/router_worker_*.log "${WORKSPACE}"/logs/vllm_*.log; do
+              [[ -e "${f}" ]] && cp -f "${f}" "${out_dir}/" 2>/dev/null || true
+            done
+            # Mirror into the durable session store so resumed runs keep them.
+            if [[ -n "${persist_server_logs:-}" ]]; then
+              mkdir -p "${persist_server_logs}/${sid}"
+              cp -f "${out_dir}"/* "${persist_server_logs}/${sid}/" 2>/dev/null || true
+            fi
+          }
+
+          # Record the row's execution time into its result JSON so the compiled
+          # report table includes an exec_time column. The client container runs
+          # as root and creates this file root-owned; write via a temp file +
+          # os.replace (needs only dir write perm) to avoid a PermissionError
+          # when this host-side step (user ubuntu) can't truncate the root file.
+          record_row_time() {
+            local json_path="$1" elapsed="$2"
+            python3 -c 'import json,os,sys; from pathlib import Path; p=Path(sys.argv[1]); d=json.loads(p.read_text()) if p.exists() else {}; s=int(sys.argv[2]); d["exec_time_s"]=s; d["exec_time"]="%02d:%02d:%02d"%(s//3600,(s%3600)//60,s%60); p.parent.mkdir(parents=True, exist_ok=True); tmp=p.with_name(p.name+".tmp"); tmp.write_text(json.dumps(d, indent=2)); os.replace(tmp, p)' "${json_path}" "${elapsed}"
+          }
+
+          # Merge the docker + vllm server/client commands into the row result
+          # JSON. Values pass via env to avoid shell-quoting issues; temp file +
+          # os.replace avoids the root-owned-file PermissionError.
+          record_row_meta() {
+            JSON_PATH="$1" \
+            META_DOCKER_SERVER_CMD="${2:-}" \
+            META_DOCKER_CLIENT_CMD="${3:-}" \
+            META_VLLM_SERVER_CMD="${4:-}" \
+            META_VLLM_CLIENT_CMD="${5:-}" \
+            python3 -c 'import json,os; from pathlib import Path; p=Path(os.environ["JSON_PATH"]); d=json.loads(p.read_text()) if p.exists() else {}; d["docker_server_command"]=os.environ.get("META_DOCKER_SERVER_CMD",""); d["docker_client_command"]=os.environ.get("META_DOCKER_CLIENT_CMD",""); d["vllm_server_command"]=os.environ.get("META_VLLM_SERVER_CMD",""); d["vllm_client_command"]=os.environ.get("META_VLLM_CLIENT_CMD",""); p.parent.mkdir(parents=True, exist_ok=True); tmp=p.with_name(p.name+".tmp"); tmp.write_text(json.dumps(d, indent=2)); os.replace(tmp, p)'
+          }
+
+          while IFS=$'\x1f' read -r row_id model_id hfm02 hf124 hflegacy tp pp dp dp_mode row_extra last_batch_size history_source row_input row_output c_regular c_bs sweeping_result ; do
+            [[ -z "${row_id:-}" ]] && continue
+            hf_path="${hflegacy}"
+            if [[ -z "${hf_path}" ]]; then
+              echo "Manifest row ${row_id}: no HuggingFace path resolved."
+              exit 1
+            fi
+
+            effective_extra_args="${BASE_EXTRA_ARGS} ${row_extra} --max-num-seqs=${c_bs:-1}"
+            effective_extra_args="${effective_extra_args//  / }"
+            safe_row_id="${row_id//[^A-Za-z0-9._-]/_}"
+            server_log="${WORKSPACE}/logs/server_${safe_row_id}.log"
+            container_result_path="/workspace1/logs/row_results/${safe_row_id}.json"
+            host_result_path="${WORKSPACE}/logs/row_results/${safe_row_id}.json"
+            client_log_path="${WORKSPACE}/logs/client_${safe_row_id}.log"
+            client_capture="${WORKSPACE}/logs/client_capture_${safe_row_id}.log"
+            docker_server_command=""
+            docker_client_command=""
+            vllm_server_command=""
+            vllm_client_command=""
+
+            # Resume support: skip rows already completed in this session.
+            if [[ -f "${persist_results}/${safe_row_id}.json" ]]; then
+              cp -f "${persist_results}/${safe_row_id}.json" "${host_result_path}" 2>/dev/null || true
+              prev_status=$(python3 -c 'import json,sys; from pathlib import Path; print(json.loads(Path(sys.argv[1]).read_text()).get("status",""))' "${host_result_path}" 2>/dev/null || echo "")
+              echo "ROW_SKIP row_id=${row_id} status=${prev_status} (already completed in session ${session_id})" | tee -a "${WORKSPACE}/logs/summary.log"
+              continue
+            fi
+
+            echo "ROW_START row_id=${row_id} model=${model_id} tp=${tp} pp=${pp} dp=${dp} dp_mode=${dp_mode}" | tee -a "${WORKSPACE}/logs/summary.log"
+            row_start_ts=$(date +%s)
+            if [[ -n "${last_batch_size}" ]]; then
+              echo "ROW_WARM_START row_id=${row_id} batch=${last_batch_size} source=${history_source}" | tee -a "${WORKSPACE}/logs/summary.log"
+            fi
+
+            container_name="vllm-${DEFAULT_DTYPE}"
+            docker stop "${container_name}" >/dev/null 2>&1 || true
+            docker rm "${container_name}" >/dev/null 2>&1 || true
+
+            # Clear the previous row's generic server logs so this row's snapshot
+            # only captures its own (router_dp reuses names; vllm_*.log accrues).
+            rm -f "${WORKSPACE}"/logs/router.log "${WORKSPACE}"/logs/router_worker_*.log "${WORKSPACE}"/logs/vllm_*.log 2>/dev/null || true
+
+            if [[ "${DEVICE}" == "cpu" ]]; then
+              server_script="vllm_server_launch_new.sh"
+              if [[ "${dp_mode}" == "router_dp" ]]; then
+                server_script="vllm_router_dp_launch.sh"
+              elif [[ "${dp_mode}" == "native_dp" && ! "${dp}" =~ ^[1-9][0-9]*$ ]]; then
+                echo "Invalid dp size for manifest row ${row_id}: ${dp}"
+                exit 1
+              fi
+            else
+              server_script="vllm_server_launch.sh"
+            fi
+
+            launch_args="${effective_extra_args}"
+            if [[ "${DEVICE}" == "cpu" && "${dp_mode}" == "native_dp" ]]; then
+              launch_args="${launch_args} -dp=${dp}"
+            fi
+
+            if [[ "${DEVICE}" != "cpu" ]]; then
+              echo "This workflow only supports device=cpu. Got DEVICE=${DEVICE}."
+              exit 1
+            fi
+
+            launch_cmd=$(printf 'bash %q %q %q %q %q %q %q %q %q' \
+              "/workspace/${server_script}" "${model_id}" "${DEFAULT_DTYPE}" "${DEVICE}" "${tp}" "${ENGINE_TYPE}" "${HARDWARE}" "${pp}" "${launch_args}")
+            if [[ "${dp_mode}" == "router_dp" ]]; then
+              launch_cmd=$(printf '%s %q' "${launch_cmd}" "${dp}")
+            fi
+            extra_envs=()
+            if [[ "${dp_mode}" == "none" ]]; then
+              extra_envs+=(-e VLLM_CPU_AUTO_BIND=1)
+            elif [[ -n "${CPU_VISIBLE_MEMORY_NODES}" ]]; then
+              extra_envs+=(-e CPU_VISIBLE_MEMORY_NODES="${CPU_VISIBLE_MEMORY_NODES}")
+            fi
+            if [[ -n "${VLLM_CPU_KVCACHE_SPACE}" ]]; then
+              extra_envs+=(-e VLLM_CPU_KVCACHE_SPACE="${VLLM_CPU_KVCACHE_SPACE}")
+            fi
+            server_docker_cmd=(docker run -t -d --shm-size 10g --net=host --ipc=host --privileged
+              --ulimit nofile=1048576:1048576
+              -e no_proxy=.intel.com,127.0.0.1,localhost
+              "${extra_envs[@]}"
+              -e ROUTER_STARTUP_TIMEOUT_S="${ROUTER_STARTUP_TIMEOUT_S}"
+              -e STARTUP_DEBUG_TRACE=${STARTUP_DEBUG_TRACE:-0}
+              -e HF_TOKEN_FOR_SCRIPT="${HF_TOKEN_FOR_SCRIPT}"
+              -v "${hf_path}:/root/.cache/"
+              -v "${WORKSPACE}:/workspace"
+              --name="${container_name}"
+              --entrypoint=''
+              "${docker_image}"
+              /bin/bash -c "${launch_cmd}")
+            docker_server_command="$(printf '%q ' "${server_docker_cmd[@]}")"
+            echo "=== SERVER docker command (row_id=${row_id}) ==="
+            printf '%s\n' "${docker_server_command}"
+            "${server_docker_cmd[@]}"
+
+            # Length configs: use the workflow input when provided, else fall
+            # back to this manifest row's input/output values.
+            if [[ -n "${LENGTH_CONFIGS//[$'\t\r\n ']/}" ]]; then
+              mapfile -t length_list < <(split_csv "${LENGTH_CONFIGS}" "default")
+            else
+              row_len=""
+              if [[ -n "${row_input//[$'\t\r\n ']/}" && -n "${row_output//[$'\t\r\n ']/}" ]]; then
+                row_len="${row_input}/${row_output}"
+              fi
+              mapfile -t length_list < <(split_csv "${row_len}" "default")
+            fi
+            if [[ ${#length_list[@]} -eq 0 ]]; then
+              length_list=(default)
+            fi
+
+            # If the server never becomes ready, record the row as INFRA_ERROR
+            # and move on instead of failing the entire job.
+            if ! wait_for_container "${container_name}" "${row_id}" "${dp_mode}" "${dp}"; then
+              fail_len="${length_list[0]:-default}"
+              echo "ROW_STARTUP_FAILED row_id=${row_id} model=${model_id} tp=${tp} pp=${pp} dp=${dp} dp_mode=${dp_mode} timeout_s=${ROUTER_STARTUP_TIMEOUT_S}" | tee -a "${WORKSPACE}/logs/summary.log"
+              snapshot_server_logs "${safe_row_id}" "${container_name}"
+              write_row_error_result "${host_result_path}" "${row_id}" "${model_id}" "${tp}" "${pp}" "${dp}" "${dp_mode}" "${DEFAULT_DTYPE}" "${HARDWARE}" "${fail_len}" "INFRA_ERROR" "server_startup_timeout"
+              echo "ROW_RESULT row_id=${row_id} status=INFRA_ERROR model=${model_id} tp=${tp} pp=${pp} dp=${dp} dp_mode=${dp_mode} dtype=${DEFAULT_DTYPE} length=${fail_len} error=server_startup_timeout" | tee -a "${WORKSPACE}/logs/summary.log"
+              vllm_server_command="$( { docker logs "${container_name}" 2>&1; cat "${WORKSPACE}"/logs/router*.log 2>/dev/null; } | grep -aoE 'vllm serve .*' | head -n1 || true)"
+              row_elapsed_s=$(( $(date +%s) - row_start_ts ))
+              echo "ROW_TIME row_id=${row_id} model=${model_id} elapsed_s=${row_elapsed_s} ($(printf '%02d:%02d:%02d' $((row_elapsed_s/3600)) $(((row_elapsed_s%3600)/60)) $((row_elapsed_s%60))))" | tee -a "${WORKSPACE}/logs/summary.log"
+              record_row_time "${host_result_path}" "${row_elapsed_s}"
+              record_row_meta "${host_result_path}" "${docker_server_command}" "${docker_client_command}" "${vllm_server_command}" "${vllm_client_command}"
+              cp -f "${host_result_path}" "${persist_results}/${safe_row_id}.json" 2>/dev/null || true
+              docker exec "${container_name}" pkill -2 -f 'vllm.entrypoints.openai.api_server' >/dev/null 2>&1 || true
+              docker stop "${container_name}" >/dev/null 2>&1 || true
+              docker rm "${container_name}" >/dev/null 2>&1 || true
+              continue
+            fi
+
+            # Best-effort: capture the actual "vllm serve ..." the server ran.
+            vllm_server_command="$( { docker logs "${container_name}" 2>&1; cat "${WORKSPACE}"/logs/router*.log 2>/dev/null; } | grep -aoE 'vllm serve .*' | head -n1 || true)"
+
+            for length_config in "${length_list[@]}"; do
+              docker_env_args=(
+                -e modelid="${model_id}"
+                -e dtype="${DEFAULT_DTYPE}"
+                -e backend="${BACKEND}"
+                -e device="${DEVICE}"
+                -e dataset="${DATASET}"
+                -e test_mode="${TEST_MODE}"
+                -e tuning_slas="${TUNING_SLAS}"
+                -e docker_name="${DOCKER_NAME}"
+                -e benchmark_script="${BENCHMARK_SCRIPT}"
+                -e request_rate="inf"
+                -e OPENAI_API_BASE="${OPENAI_API_BASE}"
+                -e pipeline_parallel="${pp}"
+                -e tp_socket="${tp}"
+                -e extra_args="${launch_args}"
+                -e length_config="${length_config}"
+                -e hardware="${HARDWARE}"
+                -e max_concurrency="${MAX_CONCURRENCY}"
+                -e dp_mode="${dp_mode}"
+                -e dp_size="${dp}"
+                -e enable_cpu_monitor="false"
+                -e CPU_MONITOR_INTERVAL_S="1"
+                -e BENCH_NUM_WARMUPS="${last_batch_size:-200}"
+                -e BENCH_TEMPERATURE=0
+                -e tp_backbone="${TP_BACKBONE}"
+                -e BS_RATIO="${BS_RATIO}"
+                -e HF_TOKEN_FOR_SCRIPT="${HF_TOKEN_FOR_SCRIPT}"
+                -e ROW_SERVER_LOG="${server_log}"
+                -e ROW_ID="${row_id}"
+                -e TUNING_RESULT_PATH="${container_result_path}"
+                -e CLIENT_LOG_PATH="/workspace1/logs/client_${safe_row_id}_Length-${length_config//\//-}.log"
+              )
+              if [[ -n "${last_batch_size}" ]]; then
+                docker_env_args+=(
+                  -e TUNING_PERSISTED_BATCH_SIZE="${last_batch_size}"
+                  -e TUNING_PERSISTED_BATCH_SOURCE="${history_source}"
+                )
+              fi
+
+              client_docker_cmd=(docker run --rm
+                --shm-size 10g
+                --net=host
+                --ulimit nofile=1048576:1048576
+                -v "${WORKSPACE}:/workspace1"
+                -v "${hf_path}:/root/.cache/"
+                -u root
+                --privileged
+                --entrypoint=''
+                --env no_proxy=.intel.com
+                -e HF_TOKEN_FOR_SCRIPT="${HF_TOKEN_FOR_SCRIPT}"
+                --env work_space="${WORKSPACE}"
+                "${docker_env_args[@]}"
+                "${docker_image}"
+                /bin/bash -lc "cd /workspace1 && bash /workspace1/perf_fixed_batch_vllm.sh")
+              docker_client_command="$(printf '%q ' "${client_docker_cmd[@]}")"
+              echo "=== CLIENT docker command (row_id=${row_id} length=${length_config}) ==="
+              printf '%s\n' "${docker_client_command}"
+              "${client_docker_cmd[@]}" 2>&1 | tee "${client_capture}"
+              # Best-effort: capture the actual "vllm bench serve ..." the client ran.
+              vllm_client_command="$(grep -aoE 'vllm bench serve .*' "${client_capture}" | head -n1 || true)"
+
+              if [[ -f "${host_result_path}" ]]; then
+                result_status=$(python3 -c 'import json,sys; from pathlib import Path; print(json.loads(Path(sys.argv[1]).read_text()).get("status", "MODEL_ERROR"))' "${host_result_path}")
+                echo "ROW_RESULT row_id=${row_id} status=${result_status} model=${model_id} tp=${tp} pp=${pp} dp=${dp} dp_mode=${dp_mode} dtype=${DEFAULT_DTYPE} length=${length_config}" | tee -a "${WORKSPACE}/logs/summary.log"
+              else
+                echo "ROW_RESULT row_id=${row_id} status=MODEL_ERROR model=${model_id} tp=${tp} pp=${pp} dp=${dp} dp_mode=${dp_mode} dtype=${DEFAULT_DTYPE} length=${length_config} error=missing_result_file" | tee -a "${WORKSPACE}/logs/summary.log"
+              fi
+            done
+
+            row_elapsed_s=$(( $(date +%s) - row_start_ts ))
+            echo "ROW_TIME row_id=${row_id} model=${model_id} elapsed_s=${row_elapsed_s} ($(printf '%02d:%02d:%02d' $((row_elapsed_s/3600)) $(((row_elapsed_s%3600)/60)) $((row_elapsed_s%60))))" | tee -a "${WORKSPACE}/logs/summary.log"
+            record_row_time "${host_result_path}" "${row_elapsed_s}"
+            record_row_meta "${host_result_path}" "${docker_server_command}" "${docker_client_command}" "${vllm_server_command}" "${vllm_client_command}"
+
+            # Persist this row's result so a resumed run skips it.
+            cp -f "${host_result_path}" "${persist_results}/${safe_row_id}.json" 2>/dev/null || true
+
+            # Save this model's server logs before the next row overwrites them.
+            snapshot_server_logs "${safe_row_id}" "${container_name}"
+
+            docker exec "${container_name}" pkill -2 -f 'vllm.entrypoints.openai.api_server' >/dev/null 2>&1 || true
+            docker stop "${container_name}" >/dev/null 2>&1 || true
+            docker rm "${container_name}" >/dev/null 2>&1 || true
+          done < <(python3 -c 'import csv, json, sys; from pathlib import Path; rows=json.loads(Path(sys.argv[1]).read_text()); writer=csv.writer(sys.stdout, delimiter="\x1f", lineterminator="\n"); [writer.writerow([row.get("row_id", ""), row.get("model_id", ""), row.get("hugginface_path_185", ""), row.get("hugginface_path_124", ""), row.get("hugginface_path", ""), row.get("tp", ""), row.get("pp", ""), row.get("dp", ""), row.get("dp_mode", ""), row.get("extra_args", ""), row.get("last_batch_size", ""), row.get("history_source", ""), row.get("input", ""), row.get("output", ""),row.get("c_regular", ""), row.get("c_bs", ""), row.get("sweeping_result", "")]) for row in rows]' "${rows_json}")
+
+      - name: Generate report
+        if: always()
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          python3 "${WORKSPACE}/automation/compile_serving_tuning_results.py" \
+            --results-dir "${WORKSPACE}/logs/row_results" \
+            --csv-out "${WORKSPACE}/logs/serving_tuning_results.csv" \
+            --xlsx-out "${WORKSPACE}/logs/serving_tuning_results.xlsx" \
+            --runs-snapshot-dir "${WORKSPACE}/runs" \
+            --build-number "${BUILD_NUMBER}" || echo "compile_serving_tuning_results failed (non-fatal)"
+
+          # Write results back into the json manifest.
+          python3 "${WORKSPACE}/automation/writeback_results.py" \
+            --results-csv "${WORKSPACE}/logs/serving_tuning_results.csv" \
+            --input-format json --json "${WORKSPACE}/${MANIFEST_JSON:-automation_v2.json}" \
+            --build-number "${BUILD_NUMBER}" \
+            --runs-dir "${WORKSPACE}/runs" || echo "writeback_results failed (non-fatal)"
+
+          # Render results readably: aligned table in the log and a markdown
+          # table in the run summary, so no artifact download is needed. The
+          # docker/vllm server+client commands are kept in each row's JSON (the
+          # compiled CSV drops them), so merge them back in by row_id here.
+          csv_path="${WORKSPACE}/logs/serving_tuning_results.csv"
+          results_dir="${WORKSPACE}/logs/row_results"
+          echo "=== serving_tuning_results ==="
+          if [[ -f "${csv_path}" ]]; then
+            CSV_PATH="${csv_path}" RESULTS_DIR="${results_dir}" python3 - <<'PY' | column -t -s $'\t'
+          import csv, json, os
+          from pathlib import Path
+
+          csv_path = Path(os.environ["CSV_PATH"])
+          results_dir = Path(os.environ["RESULTS_DIR"])
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY", "")
+
+          cmd_cols = ["docker_server_command", "docker_client_command",
+                      "vllm_server_command", "vllm_client_command"]
+
+          # Index per-row command metadata (kept out of the CSV) by row_id.
+          cmd_by_row = {}
+          for p in sorted(results_dir.glob("*.json")):
+              try:
+                  d = json.loads(p.read_text())
+              except Exception:
+                  continue
+              rid = str(d.get("row_id", ""))
+              if rid:
+                  cmd_by_row[rid] = {c: str(d.get(c, "") or "") for c in cmd_cols}
+
+          with csv_path.open(newline="") as f:
+              reader = csv.DictReader(f)
+              base_cols = reader.fieldnames or []
+              rows = list(reader)
+
+          headers = base_cols + cmd_cols
+
+          def values(row):
+              cmds = cmd_by_row.get(row.get("row_id", ""), {})
+              return [row.get(c, "") or "" for c in base_cols] + [cmds.get(c, "") for c in cmd_cols]
+
+          # Aligned table for the step log (tab-separated -> column -t).
+          print("\t".join(headers))
+          for r in rows:
+              print("\t".join(v.replace("\t", " ").replace("\n", " ") for v in values(r)))
+
+          # Markdown table for the workflow run summary page.
+          if summary_path:
+              def md(v):
+                  return v.replace("\n", " ").replace("|", "\\|")
+              lines = ["## serving_tuning_results", "",
+                       "| " + " | ".join(headers) + " |",
+                       "|" + "|".join([" --- "] * len(headers)) + "|"]
+              for r in rows:
+                  vals = values(r)
+                  cells = [md(v) for v in vals[:len(base_cols)]]
+                  cells += ["`" + md(v) + "`" if v else "" for v in vals[len(base_cols):]]
+                  lines.append("| " + " | ".join(cells) + " |")
+              with open(summary_path, "a", encoding="utf-8") as sf:
+                  sf.write("\n".join(lines) + "\n")
+          PY
+          else
+            echo "(serving_tuning_results.csv not found)"
+          fi
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: ipex-cpu-vllm-manifest-tuning-logs
+          path: |
+            logs/**
+            automation/reports/serving_tuning/**
+            ${{ inputs.manifest_json }}
+          if-no-files-found: ignore
+
+      - name: Clean up vLLM containers
+        if: always()
+        shell: bash
+        run: |
+          set -uo pipefail
+          # Ensure this build never leaves benchmark containers behind, even if
+          # a step above failed before its inline cleanup ran. A running
+          # container must be stopped before it can be removed.
+          stale=$(docker ps -aq --filter "name=^/vllm-" || true)
+          if [[ -n "${stale}" ]]; then
+            echo "Cleaning up vLLM containers:"
+            docker ps -a --filter "name=^/vllm-" --format '  {{.Names}} ({{.Status}})' || true
+            for cid in ${stale}; do
+              docker stop "${cid}" >/dev/null 2>&1 || true
+              docker rm -f "${cid}" >/dev/null 2>&1 || true
+            done
+          else
+            echo "No vLLM containers to remove."
+          fi
+
