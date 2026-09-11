@@ -1,0 +1,18 @@
+Using host cache root: /home/zepan/.cache
+Using result root: /home/zepan/QAteam/vLLM_benchmark/logs/get_c_regular
+Using model root: /home/zepan/QAteam/vLLM_benchmark/logs/get_c_regular/microsoft--Phi-4-reasoning
+Using log dir: /home/zepan/QAteam/vLLM_benchmark/logs/get_c_regular/microsoft--Phi-4-reasoning/run_logs
+Using final output dir: /home/zepan/QAteam/vLLM_benchmark/logs/get_c_regular/microsoft--Phi-4-reasoning/results
+Run started at: 2026-08-25T14:27:22Z
+Using VLLM_ENGINE_READY_TIMEOUT_S: 1800
+Using VLLM_CPU_AUTO_BIND: 0
+Using benchmark backend: vllm
+Using benchmark endpoint: 
+Validation only mode: benchmark execution is skipped.
+Resolved output files:
+  summary_csv=/home/zepan/QAteam/vLLM_benchmark/logs/get_c_regular/microsoft--Phi-4-reasoning/results/microsoft--Phi-4-reasoning__in1024_out1024__bfloat16_cpu_tp2_dp2_summary.csv
+  recommendation_txt=/home/zepan/QAteam/vLLM_benchmark/logs/get_c_regular/microsoft--Phi-4-reasoning/results/microsoft--Phi-4-reasoning__in1024_out1024__bfloat16_cpu_tp2_dp2_recommendation.txt
+  c_regular_file=/home/zepan/QAteam/vLLM_benchmark/logs/get_c_regular/microsoft--Phi-4-reasoning/results/c_regular_map.csv
+  result_index_file=/home/zepan/QAteam/vLLM_benchmark/logs/get_c_regular/microsoft--Phi-4-reasoning/results/c_regular_results.csv
+  existing_summary_csv=no
+  existing_recommendation_txt=no

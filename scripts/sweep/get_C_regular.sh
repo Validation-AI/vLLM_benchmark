@@ -286,14 +286,16 @@ build_case_run_tag() {
     local tp_value="$2"
     local pp_value="$3"
     local dp_value="$4"
+    local length_in_value="${5:-${LENGTH_IN}}"
+    local length_out_value="${6:-${LENGTH_OUT}}"
     local case_model_tag="${model_value//\//--}"
     local parallel_label
 
     parallel_label="$(build_parallel_label "${tp_value}" "${pp_value}" "${dp_value}")"
     if [[ -n "${parallel_label}" ]]; then
-        echo "${case_model_tag}__in${LENGTH_IN}_out${LENGTH_OUT}__${DTYPE}_${DEVICE}_${parallel_label}"
+        echo "${case_model_tag}__in${length_in_value}_out${length_out_value}__${DTYPE}_${DEVICE}_${parallel_label}"
     else
-        echo "${case_model_tag}__in${LENGTH_IN}_out${LENGTH_OUT}__${DTYPE}_${DEVICE}"
+        echo "${case_model_tag}__in${length_in_value}_out${length_out_value}__${DTYPE}_${DEVICE}"
     fi
 }
 
@@ -799,7 +801,7 @@ run_case_list() {
             case_length_out_resolved="${case_length_out}"
         fi
 
-        case_run_tag="$(build_case_run_tag "${model_value}" "${tp_value}" "${pp_value}" "${dp_value}")"
+        case_run_tag="$(build_case_run_tag "${model_value}" "${tp_value}" "${pp_value}" "${dp_value}" "${case_length_in_resolved}" "${case_length_out_resolved}")"
         case_server_container="$(build_case_server_container "${model_value}" "${tp_value}" "${pp_value}" "${dp_value}")"
         case_server_extra_args="$(build_case_server_extra_args "${manifest_extra_args}" "${dp_value}" "${dp_mode_value}")"
         case_log_dir="$(build_case_log_dir "${model_value}" "${case_run_tag}")"

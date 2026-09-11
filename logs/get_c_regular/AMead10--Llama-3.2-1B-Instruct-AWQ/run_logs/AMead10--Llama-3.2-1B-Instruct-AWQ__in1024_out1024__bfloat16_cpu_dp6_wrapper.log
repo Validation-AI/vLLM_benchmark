@@ -1,0 +1,18 @@
+Using host cache root: /home/zepan/.cache
+Using result root: /home/zepan/QAteam/vLLM_benchmark/logs/get_c_regular
+Using model root: /home/zepan/QAteam/vLLM_benchmark/logs/get_c_regular/AMead10--Llama-3.2-1B-Instruct-AWQ
+Using log dir: /home/zepan/QAteam/vLLM_benchmark/logs/get_c_regular/AMead10--Llama-3.2-1B-Instruct-AWQ/run_logs
+Using final output dir: /home/zepan/QAteam/vLLM_benchmark/logs/get_c_regular/AMead10--Llama-3.2-1B-Instruct-AWQ/results
+Run started at: 2026-08-25T14:27:23Z
+Using VLLM_ENGINE_READY_TIMEOUT_S: 1800
+Using VLLM_CPU_AUTO_BIND: 0
+Using benchmark backend: vllm
+Using benchmark endpoint: 
+Validation only mode: benchmark execution is skipped.
+Resolved output files:
+  summary_csv=/home/zepan/QAteam/vLLM_benchmark/logs/get_c_regular/AMead10--Llama-3.2-1B-Instruct-AWQ/results/AMead10--Llama-3.2-1B-Instruct-AWQ__in1024_out1024__bfloat16_cpu_dp6_summary.csv
+  recommendation_txt=/home/zepan/QAteam/vLLM_benchmark/logs/get_c_regular/AMead10--Llama-3.2-1B-Instruct-AWQ/results/AMead10--Llama-3.2-1B-Instruct-AWQ__in1024_out1024__bfloat16_cpu_dp6_recommendation.txt
+  c_regular_file=/home/zepan/QAteam/vLLM_benchmark/logs/get_c_regular/AMead10--Llama-3.2-1B-Instruct-AWQ/results/c_regular_map.csv
+  result_index_file=/home/zepan/QAteam/vLLM_benchmark/logs/get_c_regular/AMead10--Llama-3.2-1B-Instruct-AWQ/results/c_regular_results.csv
+  existing_summary_csv=no
+  existing_recommendation_txt=no
