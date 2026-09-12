@@ -459,8 +459,8 @@ jobs:
 
             echo "ROW_START row_id=${row_id} model=${model_id} tp=${tp} pp=${pp} dp=${dp} dp_mode=${dp_mode}" | tee -a "${WORKSPACE}/logs/summary.log"
             row_start_ts=$(date +%s)
-            if [[ -n "${last_batch_size}" ]]; then
-              echo "ROW_WARM_START row_id=${row_id} batch=${last_batch_size} source=${history_source}" | tee -a "${WORKSPACE}/logs/summary.log"
+            if [[ -n "${c_bs}" ]]; then
+              echo "ROW_WARM_START row_id=${row_id} batch=${c_bs} source=${history_source}" | tee -a "${WORKSPACE}/logs/summary.log"
             fi
 
             container_name="vllm-${DEFAULT_DTYPE}"
@@ -586,7 +586,7 @@ jobs:
                 -e dp_size="${dp}"
                 -e enable_cpu_monitor="false"
                 -e CPU_MONITOR_INTERVAL_S="1"
-                -e BENCH_NUM_WARMUPS="${last_batch_size:-200}"
+                -e BENCH_NUM_WARMUPS="${c_bs:-200}"
                 -e BENCH_TEMPERATURE=0
                 -e tp_backbone="${TP_BACKBONE}"
                 -e BS_RATIO="${BS_RATIO}"
@@ -596,9 +596,9 @@ jobs:
                 -e TUNING_RESULT_PATH="${container_result_path}"
                 -e CLIENT_LOG_PATH="/workspace1/logs/client_${safe_row_id}_Length-${length_config//\//-}.log"
               )
-              if [[ -n "${last_batch_size}" ]]; then
+              if [[ -n "${c_bs}" ]]; then
                 docker_env_args+=(
-                  -e TUNING_PERSISTED_BATCH_SIZE="${last_batch_size}"
+                  -e TUNING_PERSISTED_BATCH_SIZE="${c_bs}"
                   -e TUNING_PERSISTED_BATCH_SOURCE="${history_source}"
                 )
               fi
