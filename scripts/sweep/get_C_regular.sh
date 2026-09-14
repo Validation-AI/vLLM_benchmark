@@ -98,6 +98,11 @@ resolve_benchmark_transport() {
             *bge-reranker*)
                 BENCH_BACKEND='vllm-rerank'
                 ;;
+            *nomic-embed*)
+                # BERT-style encoder-only embedding model; it has no /v1/completions
+                # capability, so it must use the pooling Embeddings API instead.
+                BENCH_BACKEND='openai-embeddings'
+                ;;
             *)
                 BENCH_BACKEND='vllm'
                 ;;
@@ -117,6 +122,9 @@ resolve_benchmark_transport() {
                 ;;
             vllm-rerank)
                 BENCH_ENDPOINT='/v1/rerank'
+                ;;
+            openai-embeddings)
+                BENCH_ENDPOINT='/v1/embeddings'
                 ;;
             *)
                 BENCH_ENDPOINT=''
@@ -149,6 +157,9 @@ resolve_benchmark_transport() {
                 BENCH_SAMPLING_ARGS=''
                 ;;
             vllm-rerank)
+                BENCH_SAMPLING_ARGS=''
+                ;;
+            openai-embeddings)
                 BENCH_SAMPLING_ARGS=''
                 ;;
             *)
@@ -944,6 +955,7 @@ resolve_cache_root() {
     fi
 
     candidates+=(
+        "/data"
         "${HOME}/.cache"
         "${HOME}"
         "/home/ubuntu/.cache"
@@ -2237,6 +2249,11 @@ run_client_once() {
     local client_inner_command
 
     client_inner_command=$(cat <<EOF
+if [[ '${BENCH_DATASET_NAME}' == 'hf' ]]; then
+    # HF-backed datasets (e.g. ASR audio samples) need the 'datasets' package,
+    # which vllm/vllm-openai-cpu images don't ship by default.
+    python3 -c 'import datasets' 2>/dev/null || pip install -q datasets >/dev/null 2>&1
+fi
 BENCH_CMD=(
     vllm bench serve
     --backend '${BENCH_BACKEND}'
