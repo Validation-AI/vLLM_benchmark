@@ -1931,6 +1931,22 @@ parse_log_metrics() {
     mean_ttft=$(extract_metric_value 'Mean TTFT \(ms\):|Median TTFT \(ms\):' "${log_file}")
     mean_tpot=$(extract_metric_value 'Mean TPOT \(ms\):|Median TPOT \(ms\):' "${log_file}")
 
+    case "${BENCH_BACKEND}" in
+        openai-embeddings|vllm-rerank)
+            # Pooling backends report no per-token TTFT/TPOT and label total
+            # throughput differently; fall back to the fields they do print.
+            if [[ -z "${output_token_throughput}" ]]; then
+                output_token_throughput=$(extract_metric_value 'Total token throughput \(tok/s\):' "${log_file}")
+            fi
+            if [[ -z "${mean_ttft}" ]]; then
+                mean_ttft=$(extract_metric_value 'Mean E2EL \(ms\):|Median E2EL \(ms\):' "${log_file}")
+            fi
+            if [[ -z "${mean_tpot}" ]]; then
+                mean_tpot='0'
+            fi
+            ;;
+    esac
+
     if [[ -z "${request_throughput}" || -z "${output_token_throughput}" || -z "${mean_ttft}" || -z "${mean_tpot}" ]]; then
         echo "ERROR: failed to parse metrics from ${log_file}" >&2
         exit 1
@@ -2247,6 +2263,15 @@ run_client_once() {
     local request_rate="$4"
     local log_file="$5"
     local client_inner_command
+    # HF-backed datasets (e.g. ASR audio samples) must reach the Hub to fetch
+    # dataset files, so offline mode is disabled for the client container in
+    # that case only; model/tokenizer loading (server side) stays offline.
+    local client_hf_hub_offline='1'
+    local client_transformers_offline='1'
+    if [[ '${BENCH_DATASET_NAME}' == 'hf' ]]; then
+        client_hf_hub_offline='0'
+        client_transformers_offline='0'
+    fi
 
     client_inner_command=$(cat <<EOF
 if [[ '${BENCH_DATASET_NAME}' == 'hf' ]]; then
@@ -2296,7 +2321,7 @@ EOF
     fi
     # Recorded for audit/reproduction purposes; keyed by concurrency so the exact
     # command behind the c_recommended point can be looked up later.
-    command_map[$max_concurrency]="docker run --rm --net host --ipc host --privileged --shm-size 10g --ulimit nofile=${DOCKER_NOFILE_ULIMIT} -u root -e HF_HUB_OFFLINE=1 -e TRANSFORMERS_OFFLINE=1 -e VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 -v ${CACHE}:/root/.cache --entrypoint= ${IMAGE} vllm bench serve ${recorded_bench_flags}"
+    command_map[$max_concurrency]="docker run --rm --net host --ipc host --privileged --shm-size 10g --ulimit nofile=${DOCKER_NOFILE_ULIMIT} -u root -e HF_HUB_OFFLINE=${client_hf_hub_offline} -e TRANSFORMERS_OFFLINE=${client_transformers_offline} -e VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 -v ${CACHE}:/root/.cache --entrypoint= ${IMAGE} vllm bench serve ${recorded_bench_flags}"
 
     append_command_log "${LOG_FILE_PREFIX}_client_commands.log" \
         docker run --rm \
@@ -2306,8 +2331,8 @@ EOF
         --shm-size 10g \
         --ulimit "nofile=${DOCKER_NOFILE_ULIMIT}" \
         -u root \
-        -e "HF_HUB_OFFLINE=1" \
-        -e "TRANSFORMERS_OFFLINE=1" \
+        -e "HF_HUB_OFFLINE=${client_hf_hub_offline}" \
+        -e "TRANSFORMERS_OFFLINE=${client_transformers_offline}" \
         -e "VLLM_ALLOW_LONG_MAX_MODEL_LEN=1" \
         -v "${CACHE}:/root/.cache" \
         --entrypoint= \
@@ -2322,8 +2347,8 @@ EOF
         --shm-size 10g \
         --ulimit nofile="${DOCKER_NOFILE_ULIMIT}" \
         -u root \
-        -e HF_HUB_OFFLINE=1 \
-        -e TRANSFORMERS_OFFLINE=1 \
+        -e HF_HUB_OFFLINE="${client_hf_hub_offline}" \
+        -e TRANSFORMERS_OFFLINE="${client_transformers_offline}" \
         -e VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 \
         -v "${CACHE}:/root/.cache" \
         --entrypoint='' \
