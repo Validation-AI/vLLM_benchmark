@@ -42,6 +42,10 @@ VLLM_CPU_OMP_THREADS_BIND=${VLLM_CPU_OMP_THREADS_BIND:-}
 VLLM_CPU_KVCACHE_SPACE=${VLLM_CPU_KVCACHE_SPACE:-}
 RESUME=${RESUME:-1}
 FORCE_STANDARD_LOG_LAYOUT=${FORCE_STANDARD_LOG_LAYOUT:-1}
+# Safety ceiling for the bottom-up doubling sweep used when no KV cache size is
+# reported (e.g. encoder-only pooling backends), since there is no cache-derived
+# upper bound to sweep against in that case.
+NO_KV_CACHE_SWEEP_CEILING=${NO_KV_CACHE_SWEEP_CEILING:-4096}
 VALIDATE_OUTPUT_LAYOUT_ONLY=${VALIDATE_OUTPUT_LAYOUT_ONLY:-0}
 RUN_FROM_CASE_LIST=${RUN_FROM_CASE_LIST:-0}
 CONTINUE_ON_CASE_FAILURE=${CONTINUE_ON_CASE_FAILURE:-1}
@@ -2560,9 +2564,9 @@ run_probe_and_derive_upper_limit() {
     kv_cache_tokens="$(parse_kv_cache_tokens "${full_server_log}" || true)"
 
     if [[ -z "${kv_cache_tokens}" ]]; then
-        echo "WARNING: no KV cache size reported in ${full_server_log} (expected for some pooling/encoder-only backends); skipping the KV-cache-bounded sweep and using the probe concurrency (${INITIAL_PROBE_CONCURRENCY}) directly as c_regular for this first run." >&2
+        echo "WARNING: no KV cache size reported in ${full_server_log} (expected for some pooling/encoder-only backends); falling back to a bottom-up doubling sweep (ceiling=${NO_KV_CACHE_SWEEP_CEILING}) instead of a KV-cache-bounded one." >&2
         kv_cache_probe_fallback=1
-        concurrency_upper_limit="${INITIAL_PROBE_CONCURRENCY}"
+        concurrency_upper_limit="${NO_KV_CACHE_SWEEP_CEILING}"
         return
     fi
 
@@ -2715,6 +2719,9 @@ run_exponential_sweep() {
 # testing bottom-up finds the SLA breaking point (and stops) without paying for expensive,
 # doomed-to-fail runs near concurrency_upper_limit. Falls back to top-down (run_exponential_sweep)
 # when no SLA is configured, since throughput-peak detection still needs a ceiling-down scan.
+# Also used (regardless of SLA) when kv_cache_probe_fallback=1, since there is no
+# KV-cache-derived ceiling to scan down from and point_exceeds_limit's throughput-
+# regression check still finds a reasonable stopping point on its own.
 run_ascending_sla_sweep() {
     local concurrency=1
     local next_concurrency=''
@@ -2875,10 +2882,6 @@ binary_refine_interval() {
 
 finalize_recommendation() {
     c_recommended="${best_concurrency}"
-    if [[ "${kv_cache_probe_fallback}" == "1" ]]; then
-        c_regular="${best_concurrency}"
-        return
-    fi
     c_regular=$(( c_recommended * REGRESSION_HEADROOM_PERCENT / 100 ))
     if (( c_regular < 1 )); then
         c_regular=1
@@ -2912,17 +2915,13 @@ echo "Using benchmark model: ${BENCH_MODEL}"
 # not immediately short-circuited by the probe concurrency.
 best_concurrency=''
 
-if [[ "${kv_cache_probe_fallback}" == "1" ]]; then
-    best_concurrency="${INITIAL_PROBE_CONCURRENCY}"
+restart_server_for_phase sweep "${concurrency_upper_limit}"
+if [[ "${kv_cache_probe_fallback}" == "1" || -n "${SLA_TTFT_MS_MAX:-}" || -n "${SLA_TPOT_MS_MAX:-}" ]]; then
+    run_ascending_sla_sweep
 else
-    restart_server_for_phase sweep "${concurrency_upper_limit}"
-    if [[ -n "${SLA_TTFT_MS_MAX:-}" || -n "${SLA_TPOT_MS_MAX:-}" ]]; then
-        run_ascending_sla_sweep
-    else
-        run_exponential_sweep
-    fi
-    binary_refine_interval "${exp_refine_low}" "${exp_refine_high}" "${exp_refine_preferred_side:-lower}"
+    run_exponential_sweep
 fi
+binary_refine_interval "${exp_refine_low}" "${exp_refine_high}" "${exp_refine_preferred_side:-lower}"
 finalize_recommendation
 update_c_regular_file
 update_result_index_file
