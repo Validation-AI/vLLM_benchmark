@@ -42,10 +42,11 @@ VLLM_CPU_OMP_THREADS_BIND=${VLLM_CPU_OMP_THREADS_BIND:-}
 VLLM_CPU_KVCACHE_SPACE=${VLLM_CPU_KVCACHE_SPACE:-}
 RESUME=${RESUME:-1}
 FORCE_STANDARD_LOG_LAYOUT=${FORCE_STANDARD_LOG_LAYOUT:-1}
-# Safety ceiling for the bottom-up doubling sweep used when no KV cache size is
-# reported (e.g. encoder-only pooling backends), since there is no cache-derived
-# upper bound to sweep against in that case.
-NO_KV_CACHE_SWEEP_CEILING=${NO_KV_CACHE_SWEEP_CEILING:-4096}
+# Hard safety cap (not a target) for the bottom-up doubling sweep used when no KV
+# cache size is reported (e.g. encoder-only pooling backends). The sweep is expected
+# to stop via point_exceeds_limit's throughput-regression check well before this is
+# ever reached; it only guards against unbounded doubling if throughput never regresses.
+NO_KV_CACHE_SWEEP_CEILING=${NO_KV_CACHE_SWEEP_CEILING:-65536}
 VALIDATE_OUTPUT_LAYOUT_ONLY=${VALIDATE_OUTPUT_LAYOUT_ONLY:-0}
 RUN_FROM_CASE_LIST=${RUN_FROM_CASE_LIST:-0}
 CONTINUE_ON_CASE_FAILURE=${CONTINUE_ON_CASE_FAILURE:-1}
@@ -2788,6 +2789,9 @@ run_ascending_sla_sweep() {
     fi
 
     if [[ -z "${exp_refine_preferred_side}" ]]; then
+        if [[ "${kv_cache_probe_fallback}" == "1" ]]; then
+            echo "WARNING: bottom-up sweep reached the safety cap (${concurrency_upper_limit}) without any throughput regression; this is unexpected, double-check the results." >&2
+        fi
         echo "Bottom-up sweep did not find a narrower bracket; skip directional refine."
         echo "Bottom-up sweep best so far: C=${best_concurrency} tok/s=${output_token_throughput_map[$best_concurrency]}"
         return
