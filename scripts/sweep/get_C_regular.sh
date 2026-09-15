@@ -2289,6 +2289,9 @@ if [[ '${BENCH_DATASET_NAME}' == 'hf' ]]; then
     # HF-backed datasets (e.g. ASR audio samples) need the 'datasets' package,
     # which vllm/vllm-openai-cpu images don't ship by default.
     python3 -c 'import datasets' 2>/dev/null || pip install -q datasets >/dev/null 2>&1
+    # Decoding actual audio bytes (e.g. the ASR 'hf' dataset path) additionally
+    # needs 'torchcodec', or datasets raises ImportError at first access.
+    python3 -c 'import torchcodec' 2>/dev/null || pip install -q torchcodec >/dev/null 2>&1
 fi
 BENCH_CMD=(
     vllm bench serve
