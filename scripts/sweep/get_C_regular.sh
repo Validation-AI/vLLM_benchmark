@@ -2261,7 +2261,7 @@ run_client_once() {
     # that case only; model/tokenizer loading (server side) stays offline.
     local client_hf_hub_offline='1'
     local client_transformers_offline='1'
-    if [[ '${BENCH_DATASET_NAME}' == 'hf' ]]; then
+    if [[ "${BENCH_DATASET_NAME}" == 'hf' ]]; then
         client_hf_hub_offline='0'
         client_transformers_offline='0'
     fi
