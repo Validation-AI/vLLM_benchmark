@@ -79,7 +79,7 @@ on:
       bs_ratio:
         description: "Multiplier applied to the persisted batch size in perf_fixed_batch_vllm.sh (batch_size = persisted_batch_size * bs_ratio)."
         required: false
-        default: "5"
+        default: "1"
         type: string
       tp_backbone:
         required: false
