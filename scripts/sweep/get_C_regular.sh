@@ -445,11 +445,15 @@ iter_case_list() {
     if case_list_is_json; then
         python3 - "$(get_case_list_source_path)" "${CASE_LIST_MODEL_FILTER}" <<'PY'
 import json
+import re
 import sys
 
 FIELD_SEP = "\x1f"
 
 path, model_filter = sys.argv[1], sys.argv[2].strip()
+# Defensively strip an accidental "model:"/"model_id:" label (e.g. pasted from
+# a form field) so it doesn't silently corrupt the first entry in the list.
+model_filter = re.sub(r"(?i)^model(_id)?\s*:\s*", "", model_filter)
 with open(path, encoding="utf-8") as handle:
     rows = json.load(handle)
 
@@ -515,12 +519,16 @@ PY
     fi
 
     python3 - "${CASE_LIST_XLSX}" "${CASE_LIST_SHEET}" "${CASE_LIST_MODEL_FILTER}" <<'PY'
+import re
 import sys
 from openpyxl import load_workbook
 
 FIELD_SEP = "\x1f"
 
 path, sheet, model_filter = sys.argv[1], sys.argv[2], sys.argv[3].strip()
+# Defensively strip an accidental "model:"/"model_id:" label (e.g. pasted from
+# a form field) so it doesn't silently corrupt the first entry in the list.
+model_filter = re.sub(r"(?i)^model(_id)?\s*:\s*", "", model_filter)
 wb = load_workbook(path)
 ws = wb[sheet]
 headers = [ws.cell(row=1, column=idx).value for idx in range(1, ws.max_column + 1)]
@@ -1090,6 +1098,11 @@ c_recommended=''
 c_regular=''
 best_concurrency=''
 have_probe_state=0
+# Set by run_probe_and_derive_upper_limit() when the server never reports a KV
+# cache size (e.g. encoder-only pooling backends); in that case there is no
+# cache-derived upper bound to sweep against, so c_regular/c_recommended are
+# just set to the probe concurrency as a first reference point.
+kv_cache_probe_fallback=0
 failed_case_summary_written=0
 
 declare -A request_throughput_map
@@ -2547,8 +2560,10 @@ run_probe_and_derive_upper_limit() {
     kv_cache_tokens="$(parse_kv_cache_tokens "${full_server_log}" || true)"
 
     if [[ -z "${kv_cache_tokens}" ]]; then
-        echo "ERROR: failed to parse KV cache size from ${full_server_log}" >&2
-        exit 1
+        echo "WARNING: no KV cache size reported in ${full_server_log} (expected for some pooling/encoder-only backends); skipping the KV-cache-bounded sweep and using the probe concurrency (${INITIAL_PROBE_CONCURRENCY}) directly as c_regular for this first run." >&2
+        kv_cache_probe_fallback=1
+        concurrency_upper_limit="${INITIAL_PROBE_CONCURRENCY}"
+        return
     fi
 
     derive_concurrency_upper_limit
@@ -2860,6 +2875,10 @@ binary_refine_interval() {
 
 finalize_recommendation() {
     c_recommended="${best_concurrency}"
+    if [[ "${kv_cache_probe_fallback}" == "1" ]]; then
+        c_regular="${best_concurrency}"
+        return
+    fi
     c_regular=$(( c_recommended * REGRESSION_HEADROOM_PERCENT / 100 ))
     if (( c_regular < 1 )); then
         c_regular=1
@@ -2893,13 +2912,17 @@ echo "Using benchmark model: ${BENCH_MODEL}"
 # not immediately short-circuited by the probe concurrency.
 best_concurrency=''
 
-restart_server_for_phase sweep "${concurrency_upper_limit}"
-if [[ -n "${SLA_TTFT_MS_MAX:-}" || -n "${SLA_TPOT_MS_MAX:-}" ]]; then
-    run_ascending_sla_sweep
+if [[ "${kv_cache_probe_fallback}" == "1" ]]; then
+    best_concurrency="${INITIAL_PROBE_CONCURRENCY}"
 else
-    run_exponential_sweep
+    restart_server_for_phase sweep "${concurrency_upper_limit}"
+    if [[ -n "${SLA_TTFT_MS_MAX:-}" || -n "${SLA_TPOT_MS_MAX:-}" ]]; then
+        run_ascending_sla_sweep
+    else
+        run_exponential_sweep
+    fi
+    binary_refine_interval "${exp_refine_low}" "${exp_refine_high}" "${exp_refine_preferred_side:-lower}"
 fi
-binary_refine_interval "${exp_refine_low}" "${exp_refine_high}" "${exp_refine_preferred_side:-lower}"
 finalize_recommendation
 update_c_regular_file
 update_result_index_file
