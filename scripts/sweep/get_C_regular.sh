@@ -428,20 +428,16 @@ resolve_case_list_json_output() {
         return
     fi
 
-    if [[ -z "${CASE_LIST_JSON_OUTPUT}" ]]; then
-        CASE_LIST_JSON_OUTPUT="${CASE_LIST_XLSX%.json}.new.json"
-    fi
+    # Results are written directly into the manifest itself (row-by-row, only
+    # the result columns), so there is no separate "<manifest>.new.json" output
+    # to keep in sync anymore. Resuming an interrupted sweep is handled by the
+    # existing-status check in run_case_list(), which already reads whatever
+    # last_status/c_recommended/c_regular are currently in the manifest.
+    CASE_LIST_JSON_OUTPUT="${CASE_LIST_XLSX}"
 }
 
 get_case_list_source_path() {
-    if case_list_is_json; then
-        resolve_case_list_json_output
-        if [[ "${RESUME}" == "1" && -f "${CASE_LIST_JSON_OUTPUT}" ]]; then
-            echo "${CASE_LIST_JSON_OUTPUT}"
-            return
-        fi
-    fi
-
+    resolve_case_list_json_output
     echo "${CASE_LIST_XLSX}"
 }
 
@@ -608,17 +604,14 @@ PY
 ensure_case_list_result_columns() {
     if case_list_is_json; then
         resolve_case_list_json_output
-        python3 - "${CASE_LIST_XLSX}" "${CASE_LIST_JSON_OUTPUT}" "${RESUME}" <<'PY'
+        python3 - "${CASE_LIST_JSON_OUTPUT}" <<'PY'
 import json
 import sys
 from pathlib import Path
 
-input_path = Path(sys.argv[1])
-output_path = Path(sys.argv[2])
-resume = sys.argv[3] == "1"
+output_path = Path(sys.argv[1])
 
-source_path = output_path if resume and output_path.exists() else input_path
-with open(source_path, encoding="utf-8") as handle:
+with open(output_path, encoding="utf-8") as handle:
     rows = json.load(handle)
 
 for row in rows:
