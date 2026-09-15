@@ -65,8 +65,8 @@ def resolve_row(raw):
     tp = raw.get("tp")
     pp = raw.get("pp")
     dp = raw.get("dp")
-    sweeping_result = normalize_str(raw.get("sweeping_result"))
-    if sweeping_result == "fail_on_sla":
+    sweep_result = normalize_str(raw.get("sweep_result"))
+    if sweep_result == "fail_on_sla":
         c_regular = 1
     else:
         c_regular = normalize_int(raw.get("c_regular"), 0)
@@ -115,10 +115,10 @@ def resolve_row(raw):
         "last_throughput": normalize_str(raw.get("last_throughput")),
         "last_ttft_ms": normalize_str(raw.get("last_ttft_ms")),
         "last_tpot_ms": normalize_str(raw.get("last_tpot_ms")),
-        "notes": raw.get("notes"),
+        "notes": normalize_str(raw.get("notes")),
         "c_regular": c_regular,
         "c_bs": c_bs,
-        "sweeping_result": sweeping_result,
+        "sweep_result": sweep_result,
     }
 
 
@@ -173,8 +173,8 @@ def main():
         print(row)
         if allowed_models and row["model_id"] not in allowed_models:
             continue
-        if not args.include_disabled and (not row["enabled"] or row["sweeping_result"] == "fail_on_error"):
-            print(f"Skipping disabled row: {row['model_id']} (enabled={row['enabled']}, sweeping_result={row['sweeping_result']})")
+        if not args.include_disabled and (not row["enabled"] or row["sweep_result"] == "fail_on_error"):
+            print(f"Skipping disabled row: {row['model_id']} (enabled={row['enabled']}, sweep_result={row['sweep_result']})")
             continue
         rows.append(row)
     output_path = Path(args.output)
