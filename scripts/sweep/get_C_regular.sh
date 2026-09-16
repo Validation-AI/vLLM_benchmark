@@ -2306,9 +2306,15 @@ run_client_once() {
     # that case only; model/tokenizer loading (server side) stays offline.
     local client_hf_hub_offline='1'
     local client_transformers_offline='1'
+    local -a client_hf_token_env=()
     if [[ "${BENCH_DATASET_NAME}" == 'hf' ]]; then
         client_hf_hub_offline='0'
         client_transformers_offline='0'
+        # This client actually talks to huggingface.co (dataset download) in
+        # this mode, so authenticate it too, or it hits HF Hub anonymously and
+        # is more exposed to 429 rate limits than the (already-authenticated)
+        # server container.
+        client_hf_token_env=(-e "HF_TOKEN=${HF_TOKEN_FOR_SCRIPT}" -e "HUGGING_FACE_HUB_TOKEN=${HF_TOKEN_FOR_SCRIPT}")
     fi
 
     client_inner_command=$(cat <<EOF
@@ -2364,7 +2370,7 @@ EOF
     fi
     # Recorded for audit/reproduction purposes; keyed by concurrency so the exact
     # command behind the c_recommended point can be looked up later.
-    command_map[$max_concurrency]="docker run --rm --net host --ipc host --privileged --shm-size 10g --ulimit nofile=${DOCKER_NOFILE_ULIMIT} -u root -e HF_HUB_OFFLINE=${client_hf_hub_offline} -e TRANSFORMERS_OFFLINE=${client_transformers_offline} -e VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 -v ${CACHE}:/root/.cache --entrypoint= ${IMAGE} vllm bench serve ${recorded_bench_flags}"
+    command_map[$max_concurrency]="docker run --rm --net host --ipc host --privileged --shm-size 10g --ulimit nofile=${DOCKER_NOFILE_ULIMIT} -u root -e HF_HUB_OFFLINE=${client_hf_hub_offline} -e TRANSFORMERS_OFFLINE=${client_transformers_offline}$([[ ${#client_hf_token_env[@]} -gt 0 ]] && echo ' -e HF_TOKEN=*** -e HUGGING_FACE_HUB_TOKEN=***') -e VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 -v ${CACHE}:/root/.cache --entrypoint= ${IMAGE} vllm bench serve ${recorded_bench_flags}"
 
     append_command_log "${LOG_FILE_PREFIX}_client_commands.log" \
         docker run --rm \
@@ -2376,6 +2382,7 @@ EOF
         -u root \
         -e "HF_HUB_OFFLINE=${client_hf_hub_offline}" \
         -e "TRANSFORMERS_OFFLINE=${client_transformers_offline}" \
+        $([[ ${#client_hf_token_env[@]} -gt 0 ]] && echo '-e HF_TOKEN=*** -e HUGGING_FACE_HUB_TOKEN=***') \
         -e "VLLM_ALLOW_LONG_MAX_MODEL_LEN=1" \
         -v "${CACHE}:/root/.cache" \
         --entrypoint= \
@@ -2392,6 +2399,7 @@ EOF
         -u root \
         -e HF_HUB_OFFLINE="${client_hf_hub_offline}" \
         -e TRANSFORMERS_OFFLINE="${client_transformers_offline}" \
+        "${client_hf_token_env[@]}" \
         -e VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 \
         -v "${CACHE}:/root/.cache" \
         --entrypoint='' \
