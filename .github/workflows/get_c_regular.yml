@@ -231,7 +231,7 @@ jobs:
             exit 0
           fi
 
-          python3 "${manifest_path}" >> "${GITHUB_STEP_SUMMARY}" <<'PY'
+          python3 - "${manifest_path}" >> "${GITHUB_STEP_SUMMARY}" <<'PY'
           import json
           import sys
           from pathlib import Path
