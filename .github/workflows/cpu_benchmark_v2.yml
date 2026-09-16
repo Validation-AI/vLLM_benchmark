@@ -269,7 +269,7 @@ jobs:
           if [[ -n "${report_name}" ]]; then
             REPORT_JSON="${WORKSPACE}/logs/${CATEGORY}/${report_name}"
           else
-            REPORT_JSON=""
+            REPORT_JSON="${WORKSPACE}/logs/results.json"
           fi
           echo "report_json = ${REPORT_JSON:-<none>}"
           echo "REPORT_JSON=${REPORT_JSON}" >> "${GITHUB_ENV}"
@@ -816,6 +816,14 @@ jobs:
           if [[ -n "${REPORT_JSON:-}" ]]; then
             mkdir -p "$(dirname "${REPORT_JSON}")"
             python3 -c 'import json,sys,glob; from pathlib import Path; bn=sys.argv[3]; rows=[json.loads(Path(p).read_text()) for p in sorted(glob.glob(sys.argv[2] + "/*.json"))]; [r.update({"last_build_number": bn}) for r in rows]; Path(sys.argv[1]).write_text(json.dumps(rows, indent=2))' "${REPORT_JSON}" "${WORKSPACE}/logs/row_results" "${BUILD_NUMBER}" && echo "Wrote result report: ${REPORT_JSON}" || echo "writing REPORT_JSON failed (non-fatal)"
+          fi
+
+          # Write results back (last_* fields) into the report json, not the manifest.
+          if [[ -n "${REPORT_JSON:-}" && -f "${REPORT_JSON}" ]]; then
+            python3 "${WORKSPACE}/automation/writeback_results.py" \
+              --results-csv "${WORKSPACE}/logs/serving_tuning_results.csv" \
+              --input-format json --json "${REPORT_JSON}" \
+              --build-number "${BUILD_NUMBER}" || echo "writeback_results failed (non-fatal)"
           fi
 
           # Render results readably: aligned table in the log and a markdown
