@@ -210,6 +210,70 @@ jobs:
             git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
 
+      - name: Generate job summary
+        if: always()
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          manifest_rel='${{ inputs.case_list_xlsx }}'
+          manifest_path="${WORKSPACE}/${manifest_rel}"
+
+          if [[ "${manifest_rel,,}" != *.json ]]; then
+            echo "Manifest is not JSON (${manifest_rel}); skip job summary."
+            exit 0
+          fi
+          if [[ ! -f "${manifest_path}" ]]; then
+            echo "Manifest not found (${manifest_path}); skip job summary."
+            exit 0
+          fi
+          if [[ -z "${GITHUB_STEP_SUMMARY:-}" ]]; then
+            exit 0
+          fi
+
+          python3 "${manifest_path}" >> "${GITHUB_STEP_SUMMARY}" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          rows = json.loads(Path(sys.argv[1]).read_text())
+
+          def fmt(value):
+              return "" if value in (None, "") else str(value)
+
+          STATUS_EMOJI = {"PASS": "✅", "FAIL": "❌"}
+          headers = [
+              "row", "model_id", "tp", "pp", "dp", "dp_mode", "length_in", "length_out",
+              "status", "c_recommended", "c_regular", "throughput", "ttft_ms", "tpot_ms", "last_run_at",
+          ]
+
+          print("## cpu-get-c-regular results\n")
+          print("| " + " | ".join(headers) + " |")
+          print("|" + "|".join([" --- "] * len(headers)) + "|")
+          for idx, row in enumerate(rows, start=1):
+              if not isinstance(row, dict) or not row.get("model_id"):
+                  continue
+              status = fmt(row.get("last_status"))
+              cells = [
+                  str(idx),
+                  fmt(row.get("model_id")),
+                  fmt(row.get("tp")),
+                  fmt(row.get("pp")),
+                  fmt(row.get("dp")),
+                  fmt(row.get("dp_mode")),
+                  fmt(row.get("input")),
+                  fmt(row.get("output")),
+                  (STATUS_EMOJI.get(status, "") + " " + status).strip(),
+                  fmt(row.get("c_recommended")),
+                  fmt(row.get("c_regular")),
+                  fmt(row.get("last_throughput")),
+                  fmt(row.get("last_ttft_ms")),
+                  fmt(row.get("last_tpot_ms")),
+                  fmt(row.get("last_run_at")),
+              ]
+              print("| " + " | ".join(cells) + " |")
+          PY
+
       - name: Upload get_c_regular logs
         if: always()
         uses: actions/upload-artifact@v5
