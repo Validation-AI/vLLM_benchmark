@@ -35,6 +35,8 @@ MAX_BINARY_STEPS=${MAX_BINARY_STEPS:-16}
 FAIL_CONFIRM_RETRIES=${FAIL_CONFIRM_RETRIES:-1}
 SERVER_READY_RETRIES=${SERVER_READY_RETRIES:-180}
 SERVER_READY_SLEEP_SECONDS=${SERVER_READY_SLEEP_SECONDS:-10}
+SERVER_HF_RATE_LIMIT_RETRIES=${SERVER_HF_RATE_LIMIT_RETRIES:-3}
+SERVER_HF_RATE_LIMIT_BACKOFF_SECONDS=${SERVER_HF_RATE_LIMIT_BACKOFF_SECONDS:-30}
 VLLM_ENGINE_READY_TIMEOUT_S=${VLLM_ENGINE_READY_TIMEOUT_S:-1800}
 VLLM_CPU_AUTO_BIND=${VLLM_CPU_AUTO_BIND:-0}
 CPU_VISIBLE_MEMORY_NODES=${CPU_VISIBLE_MEMORY_NODES:-}
@@ -1872,6 +1874,9 @@ start_server() {
 }
 
 wait_for_server_ready() {
+    # allow_retry_signal=1: return 2 instead of exiting when the container
+    # died from a transient HF Hub rate limit (429), so the caller can retry.
+    local allow_retry_signal="${1:-0}"
     local startup_log
     local attempt=1
     local elapsed_seconds=0
@@ -1884,9 +1889,15 @@ wait_for_server_ready() {
         fi
 
         if ! docker ps --filter "name=${SERVER_CONTAINER}" --filter status=running --format '{{.Names}}' | grep -qx "${SERVER_CONTAINER}"; then
-            echo "ERROR: server container ${SERVER_CONTAINER} is not running during readiness wait." >&2
             server_should_cleanup=0
             dump_server_diagnostics "${startup_log}"
+            if [[ "${allow_retry_signal}" == "1" ]] \
+                && grep -q "429 Too Many Requests" "${startup_log}" 2>/dev/null \
+                && grep -q "huggingface.co" "${startup_log}" 2>/dev/null; then
+                echo "WARNING: server container ${SERVER_CONTAINER} exited due to a transient HF Hub rate limit (429)." >&2
+                return 2
+            fi
+            echo "ERROR: server container ${SERVER_CONTAINER} is not running during readiness wait." >&2
             exit 1
         fi
 
@@ -2586,18 +2597,39 @@ restart_server_for_phase() {
     local phase="$1"
     local max_num_seqs="${2:-}"
     local server_args
+    local startup_attempt
+    local ready_status
 
     server_args="$(build_server_args "${max_num_seqs}")"
-    if ! start_server "${server_args}"; then
-        if [[ "${phase}" == "sweep" ]] && curl --noproxy '*' -sSf http://127.0.0.1:8000/v1/models >/dev/null; then
-            echo "WARNING: failed to restart ${SERVER_CONTAINER} for sweep with args '${server_args}'; reusing the currently ready server instead." >&2
-            capture_startup_server_logs "${LOG_FILE_PREFIX}_${phase}_server_reuse.log"
-            return 0
+
+    for ((startup_attempt=1; startup_attempt<=SERVER_HF_RATE_LIMIT_RETRIES; startup_attempt++)); do
+        if ! start_server "${server_args}"; then
+            if [[ "${phase}" == "sweep" ]] && curl --noproxy '*' -sSf http://127.0.0.1:8000/v1/models >/dev/null; then
+                echo "WARNING: failed to restart ${SERVER_CONTAINER} for sweep with args '${server_args}'; reusing the currently ready server instead." >&2
+                capture_startup_server_logs "${LOG_FILE_PREFIX}_${phase}_server_reuse.log"
+                return 0
+            fi
+            echo "ERROR: failed to start ${SERVER_CONTAINER} for phase=${phase}." >&2
+            return 1
         fi
-        echo "ERROR: failed to start ${SERVER_CONTAINER} for phase=${phase}." >&2
-        return 1
-    fi
-    wait_for_server_ready
+
+        if wait_for_server_ready 1; then
+            ready_status=0
+        else
+            ready_status=$?
+        fi
+        if [[ "${ready_status}" -eq 0 ]]; then
+            break
+        fi
+
+        if [[ "${startup_attempt}" -lt "${SERVER_HF_RATE_LIMIT_RETRIES}" ]]; then
+            echo "Retrying server startup for phase=${phase} after transient HF Hub rate limit (attempt ${startup_attempt}/${SERVER_HF_RATE_LIMIT_RETRIES})." >&2
+            sleep "${SERVER_HF_RATE_LIMIT_BACKOFF_SECONDS}"
+            continue
+        fi
+        echo "ERROR: server for phase=${phase} kept hitting HF Hub rate limits after ${SERVER_HF_RATE_LIMIT_RETRIES} attempts." >&2
+        exit 1
+    done
 
     if should_use_explicit_tokenizer; then
         if [[ -n "${TOKENIZER_PATH}" ]]; then
