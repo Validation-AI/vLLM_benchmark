@@ -57,6 +57,20 @@ def safe_num(v):
         return None
 
 
+def image_tag(image):
+    """Extract just the tag from a docker image reference.
+
+    e.g. 'vllm/vllm-openai-cpu:v0.24.0' -> 'v0.24.0'. Falls back to the repo
+    name when no tag is present, and strips characters Excel forbids in a
+    sheet title (: \ / ? * [ ]).
+    """
+    name = str(image or "").rsplit("/", 1)[-1]
+    tag = name.rsplit(":", 1)[-1] if ":" in name else name
+    for ch in r':\/?*[]':
+        tag = tag.replace(ch, "_")
+    return tag or "sheet"
+
+
 # ---------------------------------------------------------------------------
 # data loaders
 # ---------------------------------------------------------------------------
@@ -153,7 +167,7 @@ def write_report(
 ):
     wb = Workbook()
     ws = wb.active
-    ws.title = docker_name[:31]  # sheet name max 31 chars
+    ws.title = image_tag(docker_name)[:31]  # sheet name max 31 chars; tag only
 
     # ----- row 1-3: title / config info -----
     ws["A1"] = "SLA TTFT < 5s    TPOT< 100ms"

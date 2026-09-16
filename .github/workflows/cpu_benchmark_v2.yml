@@ -1,6 +1,10 @@
 name: cpu-vllm-benchmark-v2
 
 on:
+  schedule:
+    # Runs at 06:00 UTC on everyday，but on saturday, it will auto change to weekly in Resolve run category
+    - cron: '0 6 * * *'
+
   workflow_dispatch:
     inputs:
       runner_labels:
@@ -8,9 +12,9 @@ on:
         default: '["cpu_benchmark"]'
         type: string
       node_label:
-        description: "Optional single runner label to pin the job to one node (typically the runner name). When set, the job runs ONLY on this label. Leave empty to use runner_labels instead."
+        description: "Single runner label to pin the job to one node (typically the runner name). The job runs ONLY on this label. Set to 'all' to use runner_labels instead."
         required: false
-        default: ""
+        default: m6980m02
         type: string
       default_dtype:
         required: false
@@ -22,6 +26,25 @@ on:
         type: choice
         options:
           - serving_tuning
+      category:
+        description: "Run category."
+        required: false
+        default: nightly
+        type: choice
+        options:
+          - nightly
+          - weekly
+          - release
+          - ondemand
+      priority:
+        description: "Model priority to run."
+        required: false
+        default: P0
+        type: choice
+        options:
+          - P0
+          - P1
+          - All
       manifest_json:
         description: "JSON manifest file (relative to the repo root) to read the model matrix from."
         required: false
@@ -60,8 +83,9 @@ on:
         default: "100,5000"
         type: string
       docker_name:
+        description: "Full docker image reference to run, e.g. vllm/vllm-openai-cpu:v0.24.0."
         required: true
-        default: v0.24.0
+        default: vllm/vllm-openai-cpu:v0.24.0
         type: string
       openai_api_base:
         required: false
@@ -101,9 +125,9 @@ permissions:
 
 jobs:
   manifest:
-    # If node_label is set, run ONLY on that label (pins to one node). Otherwise
-    # use runner_labels (random pick among runners carrying those labels).
-    runs-on: ${{ inputs.node_label != '' && fromJSON(format('["{0}"]', inputs.node_label)) || fromJSON(inputs.runner_labels || '["self-hosted","linux","x64"]') }}
+    # Pin to node_label (run ONLY on that one node) unless it is 'all' or empty,
+    # in which case use runner_labels (random pick among matching runners).
+    runs-on: ${{ (inputs.node_label != '' && inputs.node_label != 'all') && fromJSON(format('["{0}"]', inputs.node_label)) || fromJSON(inputs.runner_labels || '["self-hosted","linux","x64"]') }}
     # GitHub's default job timeout is 360 min (6h). This self-hosted job can run
     # the full model matrix well past that, so raise the cap. Increase further
     # if a run still gets terminated for exceeding the limit.
@@ -113,6 +137,8 @@ jobs:
       NODE_LABEL: "${{ inputs.node_label }}"
       DEFAULT_DTYPE: ${{ inputs.default_dtype }}
       BENCHMARK_SCRIPT: ${{ inputs.benchmark_script }}
+      CATEGORY: ${{ inputs.category }}
+      PRIORITY: ${{ inputs.priority }}
       MANIFEST_JSON: ${{ inputs.manifest_json }}
       ENGINE_TYPE: ${{ inputs.engine_type }}
       HARDWARE: ${{ inputs.hardware }}
@@ -162,6 +188,29 @@ jobs:
         shell: bash
         run: python3 -m pip install --user --quiet openpyxl
 
+      - name: Resolve run category
+        shell: bash
+        run: |
+          set -uo pipefail
+          # Promote nightly runs that start on a Saturday to weekly. %u: 1=Mon..6=Sat,7=Sun.
+          dow=$(date +%u)
+          echo "workflow_start_time  = $(date '+%Y-%m-%d %H:%M:%S %Z')"
+          echo "day_of_week          = $(date '+%A') (${dow})"
+          echo "category (input)     = ${CATEGORY}"
+          if [[ "${dow}" == "6" && "${CATEGORY}" == "nightly" ]]; then
+            echo "Saturday + nightly -> promoting category to weekly"
+            CATEGORY=weekly
+          fi
+          echo "category (effective) = ${CATEGORY}"
+          echo "CATEGORY=${CATEGORY}" >> "${GITHUB_ENV}"
+          # weekly covers the full matrix; nightly keeps the requested priority (default P0).
+          if [[ "${CATEGORY}" == "weekly" ]]; then
+            echo "weekly -> forcing priority to All"
+            PRIORITY=All
+          fi
+          echo "priority (effective) = ${PRIORITY}"
+          echo "PRIORITY=${PRIORITY}" >> "${GITHUB_ENV}"
+
       - name: Print workflow configuration
         shell: bash
         run: |
@@ -172,6 +221,8 @@ jobs:
           echo "runner_name              = ${RUNNER_NAME:-<unknown>}"
           echo "default_dtype            = ${DEFAULT_DTYPE}"
           echo "benchmark_script         = ${BENCHMARK_SCRIPT}"
+          echo "category                 = ${CATEGORY}"
+          echo "priority                 = ${PRIORITY}"
           echo "manifest_json            = ${MANIFEST_JSON}"
           echo "engine_type              = ${ENGINE_TYPE}"
           echo "hardware                 = ${HARDWARE}"
@@ -319,7 +370,7 @@ jobs:
             done
           }
 
-          docker_image="vllm/vllm-openai-cpu:${DOCKER_NAME}"
+          docker_image="${DOCKER_NAME}"
           manifest_path="${WORKSPACE}/${MANIFEST_JSON:-automation_v2.json}"
           rows_json="${WORKSPACE}/automation/generated/serving_tuning_rows.json"
           state_file="${WORKSPACE}/automation/history/serving_tuning/latest/row_state.json"
@@ -360,6 +411,9 @@ jobs:
           # printf '%q' inside an unquoted $() escaped commas as "\," and broke
           # the model list, so only the last model was matched.
           read_manifest_args=(--input-format json --json "${manifest_path}" --output "${rows_json}")
+          if [[ -n "${PRIORITY:-}" ]]; then
+            read_manifest_args+=(--priority "${PRIORITY}")
+          fi
           if [[ -f "${state_file}" ]]; then
             read_manifest_args+=(--state-file "${state_file}")
           elif [[ -f "${legacy_state_file}" ]]; then
@@ -428,7 +482,14 @@ jobs:
             python3 -c 'import json,os; from pathlib import Path; p=Path(os.environ["JSON_PATH"]); d=json.loads(p.read_text()) if p.exists() else {}; d["docker_server_command"]=os.environ.get("META_DOCKER_SERVER_CMD",""); d["docker_client_command"]=os.environ.get("META_DOCKER_CLIENT_CMD",""); d["vllm_server_command"]=os.environ.get("META_VLLM_SERVER_CMD",""); d["vllm_client_command"]=os.environ.get("META_VLLM_CLIENT_CMD",""); p.parent.mkdir(parents=True, exist_ok=True); tmp=p.with_name(p.name+".tmp"); tmp.write_text(json.dumps(d, indent=2)); os.replace(tmp, p)'
           }
 
-          while IFS=$'\x1f' read -r row_id model_id hfm02 hf124 hflegacy tp pp dp dp_mode row_extra last_batch_size history_source row_input row_output c_regular c_bs sweep_result ; do
+          # Stamp the manifest priority (e.g. P0/P1) into the row result JSON so
+          # the compiled report can show it.
+          record_row_priority() {
+            local json_path="$1" priority="$2"
+            python3 -c 'import json,os,sys; from pathlib import Path; p=Path(sys.argv[1]); d=json.loads(p.read_text()) if p.exists() else {}; d["priority"]=sys.argv[2]; p.parent.mkdir(parents=True, exist_ok=True); tmp=p.with_name(p.name+".tmp"); tmp.write_text(json.dumps(d, indent=2)); os.replace(tmp, p)' "${json_path}" "${priority}"
+          }
+
+          while IFS=$'\x1f' read -r row_id model_id hfm02 hf124 hflegacy tp pp dp dp_mode row_extra last_batch_size history_source row_input row_output c_regular c_bs sweep_result row_priority ; do
             [[ -z "${row_id:-}" ]] && continue
             hf_path="${hflegacy}"
             if [[ -z "${hf_path}" ]]; then
@@ -554,6 +615,7 @@ jobs:
               echo "ROW_TIME row_id=${row_id} model=${model_id} elapsed_s=${row_elapsed_s} ($(printf '%02d:%02d:%02d' $((row_elapsed_s/3600)) $(((row_elapsed_s%3600)/60)) $((row_elapsed_s%60))))" | tee -a "${WORKSPACE}/logs/summary.log"
               record_row_time "${host_result_path}" "${row_elapsed_s}"
               record_row_meta "${host_result_path}" "${docker_server_command}" "${docker_client_command}" "${vllm_server_command}" "${vllm_client_command}"
+              record_row_priority "${host_result_path}" "${row_priority}"
               cp -f "${host_result_path}" "${persist_results}/${safe_row_id}.json" 2>/dev/null || true
               docker exec "${container_name}" pkill -2 -f 'vllm.entrypoints.openai.api_server' >/dev/null 2>&1 || true
               docker stop "${container_name}" >/dev/null 2>&1 || true
@@ -638,6 +700,7 @@ jobs:
             echo "ROW_TIME row_id=${row_id} model=${model_id} elapsed_s=${row_elapsed_s} ($(printf '%02d:%02d:%02d' $((row_elapsed_s/3600)) $(((row_elapsed_s%3600)/60)) $((row_elapsed_s%60))))" | tee -a "${WORKSPACE}/logs/summary.log"
             record_row_time "${host_result_path}" "${row_elapsed_s}"
             record_row_meta "${host_result_path}" "${docker_server_command}" "${docker_client_command}" "${vllm_server_command}" "${vllm_client_command}"
+            record_row_priority "${host_result_path}" "${row_priority}"
 
             # Persist this row's result so a resumed run skips it.
             cp -f "${host_result_path}" "${persist_results}/${safe_row_id}.json" 2>/dev/null || true
@@ -648,7 +711,7 @@ jobs:
             docker exec "${container_name}" pkill -2 -f 'vllm.entrypoints.openai.api_server' >/dev/null 2>&1 || true
             docker stop "${container_name}" >/dev/null 2>&1 || true
             docker rm "${container_name}" >/dev/null 2>&1 || true
-          done < <(python3 -c 'import csv, json, sys; from pathlib import Path; rows=json.loads(Path(sys.argv[1]).read_text()); writer=csv.writer(sys.stdout, delimiter="\x1f", lineterminator="\n"); [writer.writerow([row.get("row_id", ""), row.get("model_id", ""), row.get("hugginface_path_185", ""), row.get("hugginface_path_124", ""), row.get("hugginface_path", ""), row.get("tp", ""), row.get("pp", ""), row.get("dp", ""), row.get("dp_mode", ""), row.get("extra_args", ""), row.get("last_batch_size", ""), row.get("history_source", ""), row.get("input", ""), row.get("output", ""),row.get("c_regular", ""), row.get("c_bs", ""), row.get("sweep_result", "")]) for row in rows]' "${rows_json}")
+          done < <(python3 -c 'import csv, json, sys; from pathlib import Path; rows=json.loads(Path(sys.argv[1]).read_text()); writer=csv.writer(sys.stdout, delimiter="\x1f", lineterminator="\n"); [writer.writerow([row.get("row_id", ""), row.get("model_id", ""), row.get("hugginface_path_185", ""), row.get("hugginface_path_124", ""), row.get("hugginface_path", ""), row.get("tp", ""), row.get("pp", ""), row.get("dp", ""), row.get("dp_mode", ""), row.get("extra_args", ""), row.get("last_batch_size", ""), row.get("history_source", ""), row.get("input", ""), row.get("output", ""),row.get("c_regular", ""), row.get("c_bs", ""), row.get("sweep_result", ""), row.get("priority", "")]) for row in rows]' "${rows_json}")
 
       - name: Generate report
         if: always()

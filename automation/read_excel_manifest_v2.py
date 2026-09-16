@@ -154,6 +154,11 @@ def parse_args():
     )
     parser.add_argument("--output", required=True, help="Output JSON path")
     parser.add_argument("--row-filter", default="", help="Comma-separated model_id list")
+    parser.add_argument(
+        "--priority",
+        default="All",
+        help="Keep only rows with this priority (e.g. P0, P1). 'All' keeps every priority.",
+    )
     parser.add_argument("--include-disabled", action="store_true", help="Include disabled rows")
     parser.add_argument(
         "--state-file",
@@ -167,11 +172,16 @@ def main():
     args = parse_args()
     raw_rows = read_rows_from_json(args.json)
     allowed_models = {item.strip() for item in args.row_filter.split(",") if item.strip()}
+    priority_filter = (args.priority or "All").strip()
+    priority_all = priority_filter.lower() in ("", "all")
     rows = []
     for raw in raw_rows:
         row = resolve_row(raw)
         print(row)
         if allowed_models and row["model_id"] not in allowed_models:
+            continue
+        if not priority_all and row["priority"].lower() != priority_filter.lower():
+            print(f"Skipping row by priority: {row['model_id']} (priority={row['priority']}, want={priority_filter})")
             continue
         if not args.include_disabled and (not row["enabled"] or row["sweep_result"] == "fail_on_error"):
             print(f"Skipping disabled row: {row['model_id']} (enabled={row['enabled']}, sweep_result={row['sweep_result']})")

@@ -19,6 +19,7 @@ from serving_tuning_layout import (
 DEFAULT_COLUMNS = [
     "row_id",
     "model_id",
+    "priority",
     "tp",
     "pp",
     "dp",
