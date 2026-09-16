@@ -266,8 +266,12 @@ print_argv_debug() {
 
 extract_dp_size() {
     local token
+    local i=0
+    local n=$#
+    local -a args=("$@")
 
-    for token in "$@"; do
+    while (( i < n )); do
+        token="${args[i]}"
         case "$token" in
             -dp=*)
                 echo "${token#-dp=}"
@@ -277,7 +281,14 @@ extract_dp_size() {
                 echo "${token#--data-parallel-size=}"
                 return 0
                 ;;
+            -dp|--data-parallel-size)
+                if (( i + 1 < n )); then
+                    echo "${args[i+1]}"
+                    return 0
+                fi
+                ;;
         esac
+        (( i++ ))
     done
 
     echo "1"
