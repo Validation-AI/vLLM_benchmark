@@ -9,7 +9,6 @@ from pathlib import Path
 from openpyxl import Workbook
 
 from serving_tuning_layout import (
-    full_runs_dir,
     report_csv_path,
     report_xlsx_path,
     workspace_root,
@@ -67,23 +66,6 @@ def write_xlsx(rows, xlsx_path):
     wb.save(xlsx_path)
 
 
-def write_runs_snapshot(rows, snapshot_dir, build_number):
-    """Save an immutable per-build snapshot to runs/<date>_build<N>.json."""
-    snapshot_dir = Path(snapshot_dir)
-    snapshot_dir.mkdir(parents=True, exist_ok=True)
-    today = date.today().isoformat()
-    path = snapshot_dir / f"{today}_build{build_number}.json"
-    snapshot = {
-        "build_number": str(build_number),
-        "run_date": today,
-        "compiled_at": datetime.now(timezone.utc).isoformat(),
-        "results": rows,
-    }
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(snapshot, f, indent=2)
-    print(f"Runs snapshot saved: {path}")
-
-
 def write_report_copies(csv_path: Path, xlsx_path: Path, build_number: str):
     """Save versioned report copies under automation/reports/serving_tuning/."""
     workspace = workspace_root()
@@ -102,10 +84,8 @@ def main():
     parser.add_argument("--results-dir",   required=True)
     parser.add_argument("--csv-out",       required=True)
     parser.add_argument("--xlsx-out",      required=True)
-    parser.add_argument("--runs-snapshot-dir", default="",
-                        help="If set, write an immutable snapshot to this directory")
     parser.add_argument("--build-number",  default="",
-                        help="Jenkins build number, used to name the snapshot file")
+                        help="Build number, used to name the report copies")
     args = parser.parse_args()
 
     rows = load_results(args.results_dir)
@@ -119,10 +99,6 @@ def main():
 
     build_number = args.build_number or "unknown"
     write_report_copies(csv_out, xlsx_out, build_number)
-    write_runs_snapshot(rows, full_runs_dir(workspace_root()), build_number)
-
-    if args.runs_snapshot_dir:
-        write_runs_snapshot(rows, args.runs_snapshot_dir, build_number)
 
 
 if __name__ == "__main__":

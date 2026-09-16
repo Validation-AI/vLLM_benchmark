@@ -160,11 +160,6 @@ def parse_args():
         help="Keep only rows with this priority (e.g. P0, P1). 'All' keeps every priority.",
     )
     parser.add_argument("--include-disabled", action="store_true", help="Include disabled rows")
-    parser.add_argument(
-        "--state-file",
-        default="",
-        help="Accepted for compatibility with the v1 reader; currently unused.",
-    )
     return parser.parse_args()
 
 

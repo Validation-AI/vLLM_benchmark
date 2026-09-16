@@ -58,6 +58,11 @@ on:
         required: false
         default: automation_v2.json
         type: string
+      reference_json:
+        description: "Reference report JSON to compare against. If set and the file exists, it overrides the category-derived reference (automation/reports/<category>/...)."
+        required: false
+        default: ""
+        type: string
       engine_type:
         required: false
         default: v1
@@ -149,6 +154,7 @@ jobs:
       PRIORITY: ${{ inputs.priority }}
       FORCE_PULL: ${{ inputs.force_pull }}
       MANIFEST_JSON: ${{ inputs.manifest_json }}
+      INPUT_REFERENCE_JSON: ${{ inputs.reference_json }}
       ENGINE_TYPE: ${{ inputs.engine_type }}
       HARDWARE: ${{ inputs.hardware }}
       BASE_EXTRA_ARGS: ${{ inputs.base_extra_args }}
@@ -250,6 +256,49 @@ jobs:
             fi
           fi
           echo "docker_name (effective) = ${DOCKER_NAME}"
+          # Per-category report basename (release uses the docker image tag):
+          # nightly YYYY-MM-DD.json; weekly ww<ISO week>.json; release <tag>.json.
+          reports_dir="${WORKSPACE}/automation/reports"
+          case "${CATEGORY}" in
+            nightly) report_name="$(date +%Y-%m-%d).json" ;;
+            weekly)  report_name="$(date +%Y)ww$(date +%V).json" ;;
+            release) report_name="${DOCKER_NAME##*:}.json" ;;
+            *)       report_name="" ;;
+          esac
+          # Where this run writes its result report (read/used by later steps).
+          if [[ -n "${report_name}" ]]; then
+            REPORT_JSON="${WORKSPACE}/logs/${CATEGORY}/${report_name}"
+          else
+            REPORT_JSON=""
+          fi
+          echo "report_json = ${REPORT_JSON:-<none>}"
+          echo "REPORT_JSON=${REPORT_JSON}" >> "${GITHUB_ENV}"
+          # Reference report to compare against: a valid reference_json input
+          # wins, otherwise use the most recent report in the category folder.
+          ref_input="${INPUT_REFERENCE_JSON:-}"
+          if [[ -n "${ref_input}" && -f "${ref_input}" ]]; then
+            REFERENCE_JSON="${ref_input}"
+            echo "Using reference_json input: ${REFERENCE_JSON}"
+          elif [[ -n "${ref_input}" && -f "${WORKSPACE}/${ref_input}" ]]; then
+            REFERENCE_JSON="${WORKSPACE}/${ref_input}"
+            echo "Using reference_json input: ${REFERENCE_JSON}"
+          else
+            [[ -n "${ref_input}" ]] && echo "reference_json input '${ref_input}' not found; picking latest report in category folder."
+            # nightly (YYYY-MM-DD) and weekly (YYYYwwNN) filenames sort
+            # chronologically; release (<tag>) picks the highest version.
+            shopt -s nullglob
+            cand=("${reports_dir}/${CATEGORY}"/*.json)
+            shopt -u nullglob
+            if [[ ${#cand[@]} -eq 0 ]]; then
+              REFERENCE_JSON=""
+            elif [[ "${CATEGORY}" == "release" ]]; then
+              REFERENCE_JSON="$(printf '%s\n' "${cand[@]}" | sort -V | tail -n1)"
+            else
+              REFERENCE_JSON="$(printf '%s\n' "${cand[@]}" | sort | tail -n1)"
+            fi
+          fi
+          echo "reference_json = ${REFERENCE_JSON:-<none>}"
+          echo "REFERENCE_JSON=${REFERENCE_JSON}" >> "${GITHUB_ENV}"
 
       - name: Print workflow configuration
         shell: bash
@@ -265,6 +314,8 @@ jobs:
           echo "priority                 = ${PRIORITY}"
           echo "force_pull               = ${FORCE_PULL}"
           echo "manifest_json            = ${MANIFEST_JSON}"
+          echo "reference_json           = ${REFERENCE_JSON:-<none>}"
+          echo "report_json              = ${REPORT_JSON:-<none>}"
           echo "engine_type              = ${ENGINE_TYPE}"
           echo "hardware                 = ${HARDWARE}"
           echo "device                   = ${DEVICE}"
@@ -415,8 +466,6 @@ jobs:
           docker_image="${DOCKER_NAME}"
           manifest_path="${WORKSPACE}/${MANIFEST_JSON:-automation_v2.json}"
           rows_json="${WORKSPACE}/automation/generated/serving_tuning_rows.json"
-          state_file="${WORKSPACE}/automation/history/serving_tuning/latest/row_state.json"
-          legacy_state_file="${WORKSPACE}/automation/generated/writeback_state.json"
 
           if ! [[ -f "${manifest_path}" ]]; then
             echo "Manifest json file not found: ${manifest_path}"
@@ -455,11 +504,6 @@ jobs:
           read_manifest_args=(--input-format json --json "${manifest_path}" --output "${rows_json}")
           if [[ -n "${PRIORITY:-}" ]]; then
             read_manifest_args+=(--priority "${PRIORITY}")
-          fi
-          if [[ -f "${state_file}" ]]; then
-            read_manifest_args+=(--state-file "${state_file}")
-          elif [[ -f "${legacy_state_file}" ]]; then
-            read_manifest_args+=(--state-file "${legacy_state_file}")
           fi
           if [[ -n "${ROW_FILTER}" ]]; then
             read_manifest_args+=(--row-filter "${ROW_FILTER}")
@@ -765,15 +809,14 @@ jobs:
             --results-dir "${WORKSPACE}/logs/row_results" \
             --csv-out "${WORKSPACE}/logs/serving_tuning_results.csv" \
             --xlsx-out "${WORKSPACE}/logs/serving_tuning_results.xlsx" \
-            --runs-snapshot-dir "${WORKSPACE}/runs" \
             --build-number "${BUILD_NUMBER}" || echo "compile_serving_tuning_results failed (non-fatal)"
 
-          # Write results back into the json manifest.
-          python3 "${WORKSPACE}/automation/writeback_results.py" \
-            --results-csv "${WORKSPACE}/logs/serving_tuning_results.csv" \
-            --input-format json --json "${WORKSPACE}/${MANIFEST_JSON:-automation_v2.json}" \
-            --build-number "${BUILD_NUMBER}" \
-            --runs-dir "${WORKSPACE}/runs" || echo "writeback_results failed (non-fatal)"
+          # Write this run's compiled result report to the per-category path
+          # (logs/<category>/<name>.json) so a later run can use it as reference.
+          if [[ -n "${REPORT_JSON:-}" ]]; then
+            mkdir -p "$(dirname "${REPORT_JSON}")"
+            python3 -c 'import json,sys,glob; from pathlib import Path; bn=sys.argv[3]; rows=[json.loads(Path(p).read_text()) for p in sorted(glob.glob(sys.argv[2] + "/*.json"))]; [r.update({"last_build_number": bn}) for r in rows]; Path(sys.argv[1]).write_text(json.dumps(rows, indent=2))' "${REPORT_JSON}" "${WORKSPACE}/logs/row_results" "${BUILD_NUMBER}" && echo "Wrote result report: ${REPORT_JSON}" || echo "writing REPORT_JSON failed (non-fatal)"
+          fi
 
           # Render results readably: aligned table in the log and a markdown
           # table in the run summary, so no artifact download is needed. The
@@ -839,6 +882,11 @@ jobs:
           else
             echo "(serving_tuning_results.csv not found)"
           fi
+
+      - name: Prune logs before upload
+        if: ${{ always() && env.SKIP_RUN != '1' }}
+        shell: bash
+        run: rm -rf "${WORKSPACE}/logs/get_c_regular"
 
       - name: Upload logs
         if: ${{ always() && env.SKIP_RUN != '1' }}
