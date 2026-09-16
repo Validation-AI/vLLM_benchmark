@@ -45,6 +45,14 @@ on:
           - P0
           - P1
           - All
+      force_pull:
+        description: "nightly/weekly only. true: always pull the :nightly image. false: pull, and if the image is unchanged vs the last local copy, skip the whole run."
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "true"
+          - "false"
       manifest_json:
         description: "JSON manifest file (relative to the repo root) to read the model matrix from."
         required: false
@@ -139,6 +147,7 @@ jobs:
       BENCHMARK_SCRIPT: ${{ inputs.benchmark_script }}
       CATEGORY: ${{ inputs.category }}
       PRIORITY: ${{ inputs.priority }}
+      FORCE_PULL: ${{ inputs.force_pull }}
       MANIFEST_JSON: ${{ inputs.manifest_json }}
       ENGINE_TYPE: ${{ inputs.engine_type }}
       HARDWARE: ${{ inputs.hardware }}
@@ -210,6 +219,37 @@ jobs:
           fi
           echo "priority (effective) = ${PRIORITY}"
           echo "PRIORITY=${PRIORITY}" >> "${GITHUB_ENV}"
+          # nightly/weekly always benchmark the nightly image. Its tag is
+          # mutable, so pull to refresh the local cache (docker run alone would
+          # reuse a stale local :nightly).
+          if [[ "${CATEGORY}" == "nightly" || "${CATEGORY}" == "weekly" ]]; then
+            DOCKER_NAME=vllm/vllm-openai-cpu:nightly
+            echo "${CATEGORY} -> forcing docker image to ${DOCKER_NAME}"
+            echo "DOCKER_NAME=${DOCKER_NAME}" >> "${GITHUB_ENV}"
+            # With force_pull=false, capture the current local digest so we can
+            # tell after the pull whether the nightly image actually changed.
+            digest_fmt='{{range .RepoDigests}}{{println .}}{{end}}'
+            old_digest=""
+            if [[ "${FORCE_PULL:-true}" != "true" ]]; then
+              old_digest=$(docker image inspect "${DOCKER_NAME}" --format "${digest_fmt}" 2>/dev/null | head -n1 || true)
+            fi
+            echo "Pulling latest ${DOCKER_NAME} ..."
+            docker pull "${DOCKER_NAME}" || echo "WARN: docker pull ${DOCKER_NAME} failed; will use local cache if present"
+            # force_pull=false: if the image is unchanged, there is nothing new
+            # to benchmark, so stop the run (later steps are gated on SKIP_RUN).
+            if [[ "${FORCE_PULL:-true}" != "true" ]]; then
+              new_digest=$(docker image inspect "${DOCKER_NAME}" --format "${digest_fmt}" 2>/dev/null | head -n1 || true)
+              echo "old_digest = ${old_digest:-<none>}"
+              echo "new_digest = ${new_digest:-<none>}"
+              if [[ -n "${old_digest}" && "${old_digest}" == "${new_digest}" ]]; then
+                echo "Local ${DOCKER_NAME} already matches the remote nightly; no new image to benchmark. Skipping the run."
+                echo "SKIP_RUN=1" >> "${GITHUB_ENV}"
+                echo "docker_name (effective) = ${DOCKER_NAME}"
+                exit 0
+              fi
+            fi
+          fi
+          echo "docker_name (effective) = ${DOCKER_NAME}"
 
       - name: Print workflow configuration
         shell: bash
@@ -223,6 +263,7 @@ jobs:
           echo "benchmark_script         = ${BENCHMARK_SCRIPT}"
           echo "category                 = ${CATEGORY}"
           echo "priority                 = ${PRIORITY}"
+          echo "force_pull               = ${FORCE_PULL}"
           echo "manifest_json            = ${MANIFEST_JSON}"
           echo "engine_type              = ${ENGINE_TYPE}"
           echo "hardware                 = ${HARDWARE}"
@@ -248,6 +289,7 @@ jobs:
           echo "hf_token                 = $([[ -n "${HF_TOKEN_FOR_SCRIPT:-}" ]] && echo 'set' || echo '<empty>')"
 
       - name: Run manifest tuning
+        if: ${{ env.SKIP_RUN != '1' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -714,7 +756,7 @@ jobs:
           done < <(python3 -c 'import csv, json, sys; from pathlib import Path; rows=json.loads(Path(sys.argv[1]).read_text()); writer=csv.writer(sys.stdout, delimiter="\x1f", lineterminator="\n"); [writer.writerow([row.get("row_id", ""), row.get("model_id", ""), row.get("hugginface_path_185", ""), row.get("hugginface_path_124", ""), row.get("hugginface_path", ""), row.get("tp", ""), row.get("pp", ""), row.get("dp", ""), row.get("dp_mode", ""), row.get("extra_args", ""), row.get("last_batch_size", ""), row.get("history_source", ""), row.get("input", ""), row.get("output", ""),row.get("c_regular", ""), row.get("c_bs", ""), row.get("sweep_result", ""), row.get("priority", "")]) for row in rows]' "${rows_json}")
 
       - name: Generate report
-        if: always()
+        if: ${{ always() && env.SKIP_RUN != '1' }}
         shell: bash
         run: |
           set -uo pipefail
@@ -799,7 +841,7 @@ jobs:
           fi
 
       - name: Upload logs
-        if: always()
+        if: ${{ always() && env.SKIP_RUN != '1' }}
         uses: actions/upload-artifact@v5
         with:
           name: ipex-cpu-vllm-manifest-tuning-logs
