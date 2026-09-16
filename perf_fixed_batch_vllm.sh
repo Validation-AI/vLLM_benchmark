@@ -287,14 +287,11 @@ run_benchmark_once() {
 
     if [[ "${normalized_modelid}" == openai/whisper* ]]; then
         ensure_whisper_runtime
-        # openai-audio is outside OPENAI_COMPATIBLE_BACKENDS; vllm bench serve rejects --temperature for it.
-        vllm bench serve --model "${normalized_modelid}" --dataset-name hf --dataset-path edinburghcstr/ami --hf-subset ihm --hf-split test --random-input-len=${input_len} --random-output-len=${output_len} --num-warmups=${warmups} --ignore-eos --num-prompt ${prompts} --request-rate "${request_rate}" --max-concurrency ${run_concurrency} ${bench_trust_flag} --backend openai-audio --endpoint /v1/audio/transcriptions --port=8000 --host ${address} | tee -a "${log_path}"
+        vllm bench serve --model "${normalized_modelid}" --dataset-name hf --dataset-path edinburghcstr/ami --hf-subset ihm --hf-split test --random-input-len=${input_len} --random-output-len=${output_len} --num-warmups=${warmups} --ignore-eos --num-prompt ${prompts} --request-rate "${request_rate}" --max-concurrency ${run_concurrency} ${bench_trust_flag} --temperature=0 --backend openai-audio --endpoint /v1/audio/transcriptions --port=8000 --host ${address} | tee -a "${log_path}"
     elif [[ "${normalized_modelid}" == *bge-reranker* ]]; then
-        # vllm-rerank is outside OPENAI_COMPATIBLE_BACKENDS; vllm bench serve rejects --temperature for it.
-        vllm bench serve --model "${normalized_modelid}" --dataset-name random --random-input-len=${input_len} --random-output-len=${output_len} --num-warmups=${warmups} --ignore-eos --num-prompt ${prompts} --request-rate "${request_rate}" --max-concurrency ${run_concurrency} ${bench_trust_flag} --backend vllm-rerank --endpoint /v1/rerank --port=8000 --host ${address} | tee -a "${log_path}"
+        vllm bench serve --model "${normalized_modelid}" --dataset-name random --random-input-len=${input_len} --random-output-len=${output_len} --num-warmups=${warmups} --ignore-eos --num-prompt ${prompts} --request-rate "${request_rate}" --max-concurrency ${run_concurrency} ${bench_trust_flag} --temperature=0 --backend vllm-rerank --endpoint /v1/rerank --port=8000 --host ${address} | tee -a "${log_path}"
     elif [[ "${normalized_modelid}" == *nomic-embed* ]]; then
-        # openai-embeddings is outside OPENAI_COMPATIBLE_BACKENDS; vllm bench serve rejects --temperature for it.
-        vllm bench serve --model "${normalized_modelid}" --dataset-name random --random-input-len=${input_len} --random-output-len=${output_len} --num-warmups=${warmups} --ignore-eos --num-prompt ${prompts} --request-rate "${request_rate}" --max-concurrency ${run_concurrency} ${bench_trust_flag} --backend openai-embeddings --endpoint /v1/embeddings --port=8000 --host ${address} | tee -a "${log_path}"
+        vllm bench serve --model "${normalized_modelid}" --dataset-name random --random-input-len=${input_len} --random-output-len=${output_len} --num-warmups=${warmups} --ignore-eos --num-prompt ${prompts} --request-rate "${request_rate}" --max-concurrency ${run_concurrency} ${bench_trust_flag} --temperature=0 --backend openai-embeddings --endpoint /v1/embeddings --port=8000 --host ${address} | tee -a "${log_path}"
     else
         vllm bench serve --model "${normalized_modelid}" --dataset-name random --random-input-len=${input_len} --random-output-len=${output_len} --num-warmups=${warmups} --ignore-eos --num-prompt ${prompts} --request-rate "${request_rate}" --max-concurrency ${run_concurrency} ${bench_trust_flag} --temperature=0 --backend vllm --port=8000 --host ${address} | tee -a "${log_path}"
     fi
@@ -347,14 +344,6 @@ if [[ -n "${cpu_monitor_run_id}" ]]; then
 fi
 
 # --- Parse metrics -----------------------------------------------------------
-# bge-reranker/nomic-embed are pooling backends: single-shot responses with no
-# per-token streaming, so they print Total token throughput / Mean E2EL instead
-# of Output token throughput / Mean TTFT, and have no Mean TPOT concept at all.
-is_pooling_modelid=0
-if [[ "${normalized_modelid}" == *bge-reranker* || "${normalized_modelid}" == *nomic-embed* ]]; then
-    is_pooling_modelid=1
-fi
-
 Avg_Next_token_latency=$(grep 'Mean TPOT (ms):' "${log_path}" | sed 's/[^0-9. ]//g' || true)
 Avg_First_token_latency=$(grep 'Mean TTFT (ms):' "${log_path}" | sed 's/[^0-9. ]//g' || true)
 throughput=$(grep 'Output token throughput (tok/s):' "${log_path}" | sed 's/[^0-9. ]//g' || true)
@@ -362,23 +351,11 @@ Avg_Next_token_latency=$(echo "$Avg_Next_token_latency" | xargs)
 Avg_First_token_latency=$(echo "$Avg_First_token_latency" | xargs)
 throughput=$(echo "$throughput" | xargs)
 
-if (( is_pooling_modelid == 1 )); then
-    if [[ -z "${throughput}" ]]; then
-        throughput=$(grep 'Total token throughput (tok/s):' "${log_path}" | sed 's/[^0-9. ]//g' | xargs || true)
-    fi
-    if [[ -z "${Avg_First_token_latency}" ]]; then
-        Avg_First_token_latency=$(grep -E 'Mean E2EL \(ms\):|Median E2EL \(ms\):' "${log_path}" | tail -n1 | sed 's/[^0-9. ]//g' | xargs || true)
-    fi
-    if [[ -z "${Avg_Next_token_latency}" ]]; then
-        Avg_Next_token_latency="0"
-    fi
-fi
-
 if [ -z "$Avg_Next_token_latency" ] || [ -z "$Avg_First_token_latency" ] || [ -z "$throughput" ] || \
    ! is_number "$Avg_Next_token_latency" || ! is_number "$Avg_First_token_latency" || ! is_number "$throughput" || \
+   ! is_positive_number "$Avg_Next_token_latency" || \
    ! is_positive_number "$Avg_First_token_latency" || \
-   ! is_positive_number "$throughput" || \
-   { (( is_pooling_modelid == 0 )) && ! is_positive_number "$Avg_Next_token_latency"; }; then
+   ! is_positive_number "$throughput"; then
     if benchmark_all_requests_failed "${log_path}"; then
         capture_request_failure_evidence "${log_path}" "batch_size=${batch_size}"
         if server_is_healthy; then
