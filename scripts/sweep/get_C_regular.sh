@@ -1581,6 +1581,22 @@ capture_startup_server_logs() {
     capture_full_server_logs "${log_file}"
 }
 
+# Persists the actual resolved 'vllm serve'/router-worker command line(s) (as
+# echoed by vllm_server_launch_new.sh/vllm_router_dp_launch.sh's print_argv_debug
+# into container stdout) alongside the outer docker-run wrapper already recorded
+# in _server_commands.log, so both layers survive for later debugging regardless
+# of KEEP_DETAILED_RUN_LOGS or whether this case ultimately passed or failed.
+capture_resolved_server_cmd() {
+    local resolved_cmd_log="${LOG_FILE_PREFIX}_server_commands.log"
+
+    {
+        printf '%s ' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+        echo "resolved server launch command(s) for ${SERVER_CONTAINER}:"
+        docker logs "${SERVER_CONTAINER}" 2>&1 | grep -E '^VLLM_SERVER_CMD:|^ROUTER_DP_WORKER_CMD\[' \
+            || echo "  (no VLLM_SERVER_CMD/ROUTER_DP_WORKER_CMD line found in container logs)"
+    } >> "${resolved_cmd_log}"
+}
+
 append_command_log() {
     local log_file="$1"
     shift
@@ -2607,6 +2623,7 @@ restart_server_for_phase() {
             if [[ "${phase}" == "sweep" ]] && curl --noproxy '*' -sSf http://127.0.0.1:8000/v1/models >/dev/null; then
                 echo "WARNING: failed to restart ${SERVER_CONTAINER} for sweep with args '${server_args}'; reusing the currently ready server instead." >&2
                 capture_startup_server_logs "${LOG_FILE_PREFIX}_${phase}_server_reuse.log"
+                capture_resolved_server_cmd
                 return 0
             fi
             echo "ERROR: failed to start ${SERVER_CONTAINER} for phase=${phase}." >&2
@@ -2637,6 +2654,7 @@ restart_server_for_phase() {
         fi
     fi
 
+    capture_resolved_server_cmd
     capture_startup_server_logs "${LOG_FILE_PREFIX}_${phase}_server_startup.log"
 }
 
