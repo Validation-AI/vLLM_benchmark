@@ -33,10 +33,6 @@ DEFAULT_COLUMNS = [
     "tpot_ms",
     "exec_time",
     "error",
-    "build_number",
-    "build_url",
-    "server_log",
-    "client_log",
 ]
 
 

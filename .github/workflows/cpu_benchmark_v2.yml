@@ -2,8 +2,8 @@ name: cpu-vllm-benchmark-v2
 
 on:
   schedule:
-    # Runs at 06:00 UTC on everyday，but on saturday, it will auto change to weekly in Resolve run category
-    - cron: '0 6 * * *'
+    # Runs at 06:27 UTC on everyday，but on saturday, it will auto change to weekly in Resolve run category
+    - cron: '27 6 * * *'
 
   workflow_dispatch:
     inputs:
@@ -138,40 +138,40 @@ permissions:
 
 jobs:
   manifest:
-    # Pin to node_label (run ONLY on that one node) unless it is 'all' or empty,
-    # in which case use runner_labels (random pick among matching runners).
-    runs-on: ${{ (inputs.node_label != '' && inputs.node_label != 'all') && fromJSON(format('["{0}"]', inputs.node_label)) || fromJSON(inputs.runner_labels || '["self-hosted","linux","x64"]') }}
+    # Pin to node_label (run ONLY on that one node) unless it is 'all'. On
+    # scheduled runs inputs are empty, so default the label to m6980m02.
+    runs-on: ${{ (inputs.node_label || 'm6980m02') != 'all' && fromJSON(format('["{0}"]', inputs.node_label || 'm6980m02')) || fromJSON(inputs.runner_labels || '["cpu_benchmark"]') }}
     # GitHub's default job timeout is 360 min (6h). This self-hosted job can run
     # the full model matrix well past that, so raise the cap. Increase further
     # if a run still gets terminated for exceeding the limit.
     timeout-minutes: 4320
     env:
       WORKSPACE: ${{ github.workspace }}
-      NODE_LABEL: "${{ inputs.node_label }}"
-      DEFAULT_DTYPE: ${{ inputs.default_dtype }}
-      BENCHMARK_SCRIPT: ${{ inputs.benchmark_script }}
-      CATEGORY: ${{ inputs.category }}
-      PRIORITY: ${{ inputs.priority }}
-      FORCE_PULL: ${{ inputs.force_pull }}
-      MANIFEST_JSON: ${{ inputs.manifest_json }}
+      NODE_LABEL: "${{ inputs.node_label || 'm6980m02' }}"
+      DEFAULT_DTYPE: ${{ inputs.default_dtype || 'bfloat16' }}
+      BENCHMARK_SCRIPT: ${{ inputs.benchmark_script || 'serving_tuning' }}
+      CATEGORY: ${{ inputs.category || 'nightly' }}
+      PRIORITY: ${{ inputs.priority || 'P0' }}
+      FORCE_PULL: ${{ inputs.force_pull || 'false' }}
+      MANIFEST_JSON: ${{ inputs.manifest_json || 'automation_v2.json' }}
       INPUT_REFERENCE_JSON: ${{ inputs.reference_json }}
-      ENGINE_TYPE: ${{ inputs.engine_type }}
-      HARDWARE: ${{ inputs.hardware }}
-      BASE_EXTRA_ARGS: ${{ inputs.base_extra_args }}
+      ENGINE_TYPE: ${{ inputs.engine_type || 'v1' }}
+      HARDWARE: ${{ inputs.hardware || 'gnr' }}
+      BASE_EXTRA_ARGS: "${{ inputs.base_extra_args || '--trust-remote-code --no-enable-prefix-caching --max-num-batched-tokens=16384 --gpu-memory-utilization=0.8' }}"
       DEVICE: ${{ 'cpu' }}
       VLLM_CPU_KVCACHE_SPACE: ${{ inputs.vllm_cpu_kvcache_space }}
       CPU_VISIBLE_MEMORY_NODES: ${{ inputs.cpu_visible_memory_nodes }}
-      ROUTER_STARTUP_TIMEOUT_S: ${{ inputs.router_startup_timeout_s }}
+      ROUTER_STARTUP_TIMEOUT_S: ${{ inputs.router_startup_timeout_s || '3600' }}
       BACKEND: ${{ 'vllm' }}
       DATASET: ${{ 'dummy' }}
-      TEST_MODE: ${{ inputs.test_mode }}
-      TUNING_SLAS: ${{ inputs.tuning_slas }}
-      DOCKER_NAME: ${{ inputs.docker_name }}
-      OPENAI_API_BASE: ${{ inputs.openai_api_base }}
+      TEST_MODE: ${{ inputs.test_mode || 'performance' }}
+      TUNING_SLAS: "${{ inputs.tuning_slas || '100,5000' }}"
+      DOCKER_NAME: "${{ inputs.docker_name || 'vllm/vllm-openai-cpu:v0.24.0' }}"
+      OPENAI_API_BASE: "${{ inputs.openai_api_base || 'http://0.0.0.0:8000/v1' }}"
       LENGTH_CONFIGS: ${{ inputs.length_configs }}
-      MAX_CONCURRENCY: ${{ inputs.max_concurrency }}
-      BS_RATIO: ${{ inputs.bs_ratio }}
-      TP_BACKBONE: ${{ inputs.tp_backbone }}
+      MAX_CONCURRENCY: ${{ inputs.max_concurrency || 'default' }}
+      BS_RATIO: "${{ inputs.bs_ratio || '1' }}"
+      TP_BACKBONE: ${{ inputs.tp_backbone || 'mp' }}
       ROW_FILTER: ${{ inputs.row_filter }}
       SESSION_ID: ${{ inputs.session_id }}
       BUILD_NUMBER: ${{ github.run_number }}
@@ -870,12 +870,12 @@ jobs:
           # Aligned table for the step log (tab-separated -> column -t).
           print("\t".join(headers))
           for r in rows:
-              print("\t".join(v.replace("\t", " ").replace("\n", " ") for v in values(r)))
+              print("\t".join(v.replace("\r", " ").replace("\n", " ").replace("\t", " ") for v in values(r)))
 
           # Markdown table for the workflow run summary page.
           if summary_path:
               def md(v):
-                  return v.replace("\n", " ").replace("|", "\\|")
+                  return v.replace("\r", " ").replace("\n", " ").replace("\t", " ").replace("|", "\\|")
               lines = ["## serving_tuning_results", "",
                        "| " + " | ".join(headers) + " |",
                        "|" + "|".join([" --- "] * len(headers)) + "|"]
