@@ -76,6 +76,13 @@ is_positive_number() {
     awk -v value="$1" 'BEGIN { exit !(value + 0 > 0) }'
 }
 
+# Pooling models (embeddings via openai-embeddings, rerank via vllm-rerank)
+# return the whole result in one shot and have no token-by-token streaming, so
+# `vllm bench serve` does not print Output token throughput / Mean TTFT / Mean TPOT.
+is_pooling_model() {
+    [[ "${normalized_modelid}" == *bge-reranker* || "${normalized_modelid}" == *nomic-embed* ]]
+}
+
 normalize_positive_integer() {
     local value="$1"
     local fallback="$2"
@@ -287,11 +294,11 @@ run_benchmark_once() {
 
     if [[ "${normalized_modelid}" == openai/whisper* ]]; then
         ensure_whisper_runtime
-        vllm bench serve --model "${normalized_modelid}" --dataset-name hf --dataset-path edinburghcstr/ami --hf-subset ihm --hf-split test --random-input-len=${input_len} --random-output-len=${output_len} --num-warmups=${warmups} --ignore-eos --num-prompt ${prompts} --request-rate "${request_rate}" --max-concurrency ${run_concurrency} ${bench_trust_flag} --temperature=0 --backend openai-audio --endpoint /v1/audio/transcriptions --port=8000 --host ${address} | tee -a "${log_path}"
+        vllm bench serve --model "${normalized_modelid}" --dataset-name hf --dataset-path edinburghcstr/ami --hf-subset ihm --hf-split test --random-input-len=${input_len} --random-output-len=${output_len} --num-warmups=${warmups} --ignore-eos --num-prompt ${prompts} --request-rate "${request_rate}" --max-concurrency ${run_concurrency} ${bench_trust_flag} --backend openai-audio --endpoint /v1/audio/transcriptions --port=8000 --host ${address} | tee -a "${log_path}"
     elif [[ "${normalized_modelid}" == *bge-reranker* ]]; then
-        vllm bench serve --model "${normalized_modelid}" --dataset-name random --random-input-len=${input_len} --random-output-len=${output_len} --num-warmups=${warmups} --ignore-eos --num-prompt ${prompts} --request-rate "${request_rate}" --max-concurrency ${run_concurrency} ${bench_trust_flag} --temperature=0 --backend vllm-rerank --endpoint /v1/rerank --port=8000 --host ${address} | tee -a "${log_path}"
+        vllm bench serve --model "${normalized_modelid}" --dataset-name random --random-input-len=${input_len} --random-output-len=${output_len} --num-warmups=${warmups} --ignore-eos --num-prompt ${prompts} --request-rate "${request_rate}" --max-concurrency ${run_concurrency} ${bench_trust_flag} --backend vllm-rerank --endpoint /v1/rerank --port=8000 --host ${address} | tee -a "${log_path}"
     elif [[ "${normalized_modelid}" == *nomic-embed* ]]; then
-        vllm bench serve --model "${normalized_modelid}" --dataset-name random --random-input-len=${input_len} --random-output-len=${output_len} --num-warmups=${warmups} --ignore-eos --num-prompt ${prompts} --request-rate "${request_rate}" --max-concurrency ${run_concurrency} ${bench_trust_flag} --temperature=0 --backend openai-embeddings --endpoint /v1/embeddings --port=8000 --host ${address} | tee -a "${log_path}"
+        vllm bench serve --model "${normalized_modelid}" --dataset-name random --random-input-len=${input_len} --random-output-len=${output_len} --num-warmups=${warmups} --ignore-eos --num-prompt ${prompts} --request-rate "${request_rate}" --max-concurrency ${run_concurrency} ${bench_trust_flag} --backend openai-embeddings --endpoint /v1/embeddings --port=8000 --host ${address} | tee -a "${log_path}"
     else
         vllm bench serve --model "${normalized_modelid}" --dataset-name random --random-input-len=${input_len} --random-output-len=${output_len} --num-warmups=${warmups} --ignore-eos --num-prompt ${prompts} --request-rate "${request_rate}" --max-concurrency ${run_concurrency} ${bench_trust_flag} --temperature=0 --backend vllm --port=8000 --host ${address} | tee -a "${log_path}"
     fi
@@ -344,18 +351,46 @@ if [[ -n "${cpu_monitor_run_id}" ]]; then
 fi
 
 # --- Parse metrics -----------------------------------------------------------
-Avg_Next_token_latency=$(grep 'Mean TPOT (ms):' "${log_path}" | sed 's/[^0-9. ]//g' || true)
-Avg_First_token_latency=$(grep 'Mean TTFT (ms):' "${log_path}" | sed 's/[^0-9. ]//g' || true)
-throughput=$(grep 'Output token throughput (tok/s):' "${log_path}" | sed 's/[^0-9. ]//g' || true)
+if is_pooling_model; then
+    # No streaming metrics for pooling models: fall back to Total token throughput
+    # for throughput, Mean/Median E2EL as an approximate TTFT, and TPOT is N/A (0).
+    throughput=$(grep 'Total token throughput (tok/s):' "${log_path}" | sed 's/[^0-9. ]//g' || true)
+    # E2EL contains a digit in its label, so take the last field instead of stripping non-digits.
+    Avg_First_token_latency=$(grep 'Mean E2EL (ms):' "${log_path}" | tail -n1 | awk '{print $NF}' || true)
+    if [ -z "$(echo "$Avg_First_token_latency" | xargs)" ]; then
+        Avg_First_token_latency=$(grep 'Median E2EL (ms):' "${log_path}" | tail -n1 | awk '{print $NF}' || true)
+    fi
+    Avg_Next_token_latency="0"
+else
+    Avg_Next_token_latency=$(grep 'Mean TPOT (ms):' "${log_path}" | sed 's/[^0-9. ]//g' || true)
+    Avg_First_token_latency=$(grep 'Mean TTFT (ms):' "${log_path}" | sed 's/[^0-9. ]//g' || true)
+    throughput=$(grep 'Output token throughput (tok/s):' "${log_path}" | sed 's/[^0-9. ]//g' || true)
+fi
 Avg_Next_token_latency=$(echo "$Avg_Next_token_latency" | xargs)
 Avg_First_token_latency=$(echo "$Avg_First_token_latency" | xargs)
 throughput=$(echo "$throughput" | xargs)
 
-if [ -z "$Avg_Next_token_latency" ] || [ -z "$Avg_First_token_latency" ] || [ -z "$throughput" ] || \
-   ! is_number "$Avg_Next_token_latency" || ! is_number "$Avg_First_token_latency" || ! is_number "$throughput" || \
-   ! is_positive_number "$Avg_Next_token_latency" || \
-   ! is_positive_number "$Avg_First_token_latency" || \
-   ! is_positive_number "$throughput"; then
+# Pooling models legitimately report TPOT=0, so only TTFT/throughput must be positive.
+if is_pooling_model; then
+    metrics_invalid=false
+    if [ -z "$Avg_First_token_latency" ] || [ -z "$throughput" ] || \
+       ! is_number "$Avg_First_token_latency" || ! is_number "$throughput" || \
+       ! is_positive_number "$Avg_First_token_latency" || \
+       ! is_positive_number "$throughput"; then
+        metrics_invalid=true
+    fi
+else
+    metrics_invalid=false
+    if [ -z "$Avg_Next_token_latency" ] || [ -z "$Avg_First_token_latency" ] || [ -z "$throughput" ] || \
+       ! is_number "$Avg_Next_token_latency" || ! is_number "$Avg_First_token_latency" || ! is_number "$throughput" || \
+       ! is_positive_number "$Avg_Next_token_latency" || \
+       ! is_positive_number "$Avg_First_token_latency" || \
+       ! is_positive_number "$throughput"; then
+        metrics_invalid=true
+    fi
+fi
+
+if [ "$metrics_invalid" = true ]; then
     if benchmark_all_requests_failed "${log_path}"; then
         capture_request_failure_evidence "${log_path}" "batch_size=${batch_size}"
         if server_is_healthy; then
