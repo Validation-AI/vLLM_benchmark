@@ -264,21 +264,31 @@ dump_router_worker_logs() {
   done
 }
 
-NUMA_NODES=$(lscpu | awk -F: '/NUMA node\(s\)/{gsub(/ /,"",$2); print $2}')
-if [[ -z "${NUMA_NODES}" ]]; then
-  echo "Failed to detect NUMA node count."
-  exit 1
-fi
-SOCKETS=$(lscpu | awk -F: '/Socket\(s\)/{gsub(/ /,"",$2); print $2}')
-if [[ -z "${SOCKETS}" || "${SOCKETS}" -le 0 ]]; then
-  echo "Failed to detect socket count."
-  exit 1
+auto_bind_enabled=0
+if [[ "${VLLM_CPU_AUTO_BIND:-0}" == "1" ]]; then
+  auto_bind_enabled=1
+  echo "CPU binding mode: auto (router_dp workers get no CPU_VISIBLE_MEMORY_NODES override)"
+else
+  echo "CPU binding mode: manual"
 fi
 
-required_nodes=$((dp_size * tp_socket * pipeline_parallel))
-if (( required_nodes > NUMA_NODES )); then
-  echo "Not enough NUMA nodes for dp_size=${dp_size}, tp_socket=${tp_socket}, pipeline_parallel=${pipeline_parallel}. Required=${required_nodes}, Available=${NUMA_NODES}"
-  exit 1
+if [[ "${auto_bind_enabled}" != "1" ]]; then
+  NUMA_NODES=$(lscpu | awk -F: '/NUMA node\(s\)/{gsub(/ /,"",$2); print $2}')
+  if [[ -z "${NUMA_NODES}" ]]; then
+    echo "Failed to detect NUMA node count."
+    exit 1
+  fi
+  SOCKETS=$(lscpu | awk -F: '/Socket\(s\)/{gsub(/ /,"",$2); print $2}')
+  if [[ -z "${SOCKETS}" || "${SOCKETS}" -le 0 ]]; then
+    echo "Failed to detect socket count."
+    exit 1
+  fi
+
+  required_nodes=$((dp_size * tp_socket * pipeline_parallel))
+  if (( required_nodes > NUMA_NODES )); then
+    echo "Not enough NUMA nodes for dp_size=${dp_size}, tp_socket=${tp_socket}, pipeline_parallel=${pipeline_parallel}. Required=${required_nodes}, Available=${NUMA_NODES}"
+    exit 1
+  fi
 fi
 
 mkdir -p /workspace/logs
@@ -289,23 +299,26 @@ fi
 extra_args_array=("${SPLIT_ARGS[@]}")
 patch_gemma4_cpu_moe_activation "${pip_python}"
 
-numa_nodes_per_worker=$((tp_socket * pipeline_parallel))
-numa_per_socket=$((NUMA_NODES / SOCKETS))
-if (( numa_per_socket * SOCKETS != NUMA_NODES )); then
-  echo "NUMA topology is not evenly divisible by sockets. NUMA_NODES=${NUMA_NODES}, SOCKETS=${SOCKETS}"
-  exit 1
-fi
-if (( numa_nodes_per_worker > NUMA_NODES )); then
-  echo "Per-worker NUMA requirement exceeds machine topology: tp_socket=${tp_socket}, pipeline_parallel=${pipeline_parallel}, numa_nodes_per_worker=${numa_nodes_per_worker}, NUMA_NODES=${NUMA_NODES}"
-  exit 1
-fi
+numa_assignment_mode="disabled"
+if [[ "${auto_bind_enabled}" != "1" ]]; then
+  numa_nodes_per_worker=$((tp_socket * pipeline_parallel))
+  numa_per_socket=$((NUMA_NODES / SOCKETS))
+  if (( numa_per_socket * SOCKETS != NUMA_NODES )); then
+    echo "NUMA topology is not evenly divisible by sockets. NUMA_NODES=${NUMA_NODES}, SOCKETS=${SOCKETS}"
+    exit 1
+  fi
+  if (( numa_nodes_per_worker > NUMA_NODES )); then
+    echo "Per-worker NUMA requirement exceeds machine topology: tp_socket=${tp_socket}, pipeline_parallel=${pipeline_parallel}, numa_nodes_per_worker=${numa_nodes_per_worker}, NUMA_NODES=${NUMA_NODES}"
+    exit 1
+  fi
 
-numa_assignment_mode="socket_local_fallback"
-numa_nodes_per_instance=0
-if (( NUMA_NODES % dp_size == 0 )); then
-  numa_nodes_per_instance=$((NUMA_NODES / dp_size))
-  if (( numa_nodes_per_instance >= numa_nodes_per_worker )); then
-    numa_assignment_mode="balanced_machine_partition"
+  numa_assignment_mode="socket_local_fallback"
+  numa_nodes_per_instance=0
+  if (( NUMA_NODES % dp_size == 0 )); then
+    numa_nodes_per_instance=$((NUMA_NODES / dp_size))
+    if (( numa_nodes_per_instance >= numa_nodes_per_worker )); then
+      numa_assignment_mode="balanced_machine_partition"
+    fi
   fi
 fi
 
@@ -315,41 +328,43 @@ for ((i=0; i<dp_size; i++)); do
   port=$((base_port + i))
   ports+=("$port")
 
-  numa_nodes=""
-  if [[ "${numa_assignment_mode}" == "balanced_machine_partition" ]]; then
-    group_start=$((i * numa_nodes_per_instance))
-    group_size=${numa_nodes_per_instance}
-  else
-    socket_idx=$((i % SOCKETS))
-    group_idx=$((i / SOCKETS))
-    group_start=$((socket_idx * numa_per_socket + group_idx * numa_nodes_per_worker))
-    group_size=${numa_nodes_per_worker}
-    if (( group_start + group_size > NUMA_NODES )); then
-      echo "Not enough fallback NUMA groups for dp_size=${dp_size}. worker=${i}, group_start=${group_start}, group_size=${group_size}, NUMA_NODES=${NUMA_NODES}"
-      exit 1
-    fi
-  fi
-  for ((j=0; j<group_size; j++)); do
-    node=$((group_start + j))
-    if [[ -z "$numa_nodes" ]]; then
-      numa_nodes="$node"
-    else
-      numa_nodes="${numa_nodes},${node}"
-    fi
-  done
-  echo "ROUTER_DP_WORKER_ASSIGNMENT worker=${i} port=${port} numa_nodes=${numa_nodes}"
-
   worker_parallel_args=("-tp=${tp_socket}")
   if [[ "$pipeline_parallel" -gt 1 ]]; then
     worker_parallel_args+=("-pp=${pipeline_parallel}")
   fi
 
   worker_env=(env
-    "CPU_VISIBLE_MEMORY_NODES=${numa_nodes}"
     "VLLM_RPC_TIMEOUT=1000000"
     "VLLM_ALLOW_LONG_MAX_MODEL_LEN=1"
     "VLLM_ENGINE_ITERATION_TIMEOUT_S=600"
   )
+
+  if [[ "${auto_bind_enabled}" != "1" ]]; then
+    numa_nodes=""
+    if [[ "${numa_assignment_mode}" == "balanced_machine_partition" ]]; then
+      group_start=$((i * numa_nodes_per_instance))
+      group_size=${numa_nodes_per_instance}
+    else
+      socket_idx=$((i % SOCKETS))
+      group_idx=$((i / SOCKETS))
+      group_start=$((socket_idx * numa_per_socket + group_idx * numa_nodes_per_worker))
+      group_size=${numa_nodes_per_worker}
+      if (( group_start + group_size > NUMA_NODES )); then
+        echo "Not enough fallback NUMA groups for dp_size=${dp_size}. worker=${i}, group_start=${group_start}, group_size=${group_size}, NUMA_NODES=${NUMA_NODES}"
+        exit 1
+      fi
+    fi
+    for ((j=0; j<group_size; j++)); do
+      node=$((group_start + j))
+      if [[ -z "$numa_nodes" ]]; then
+        numa_nodes="$node"
+      else
+        numa_nodes="${numa_nodes},${node}"
+      fi
+    done
+    echo "ROUTER_DP_WORKER_ASSIGNMENT worker=${i} port=${port} numa_nodes=${numa_nodes}"
+    worker_env+=("CPU_VISIBLE_MEMORY_NODES=${numa_nodes}")
+  fi
   if [[ -n "${kvcache_space}" ]]; then
     worker_env+=("VLLM_CPU_KVCACHE_SPACE=${kvcache_space}")
   fi

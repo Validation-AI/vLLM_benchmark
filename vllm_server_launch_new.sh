@@ -316,7 +316,8 @@ if [[ "$device" == "cpu" ]];then
       extra_args="$extra_args --max-model-len 8192"
     fi
 
-    cd ${WORKSPACE}/vllm/benchmarks
+    # vllm/benchmarks only exists when a vllm source checkout is mounted; not required to serve.
+    cd ${WORKSPACE}/vllm/benchmarks 2>/dev/null || true
     extra_args="$extra_args --port 8000 --dtype $precision "
 	
     if echo "$engine_type" | grep -q "v1"; then
