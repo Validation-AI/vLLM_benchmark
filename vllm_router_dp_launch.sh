@@ -375,6 +375,10 @@ for ((i=0; i<dp_size; i++)); do
   worker_cmd=(vllm serve "${modelid}" --dtype "${precision}")
   worker_cmd+=("${worker_parallel_args[@]}")
   worker_cmd+=(--port "${port}")
+  # Embedding models must be served with the pooling embed task.
+  if [[ "${modelid,,}" == *embed* ]]; then
+    worker_cmd+=(--task embed)
+  fi
   worker_cmd+=("${extra_args_array[@]}")
   print_argv_debug "ROUTER_DP_WORKER_CMD[$i]:" "${worker_cmd[@]}"
   "${worker_env[@]}" "${worker_cmd[@]}" >"/workspace/logs/router_worker_${i}.log" 2>&1 &
