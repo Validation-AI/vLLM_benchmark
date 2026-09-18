@@ -105,8 +105,8 @@ resolve_benchmark_transport() {
             *bge-reranker*)
                 BENCH_BACKEND='vllm-rerank'
                 ;;
-            *nomic-embed*)
-                # BERT-style encoder-only embedding model; it has no /v1/completions
+            *nomic-embed*|*Embedding*)
+                # Encoder-only embedding model; it has no /v1/completions
                 # capability, so it must use the pooling Embeddings API instead.
                 BENCH_BACKEND='openai-embeddings'
                 ;;
@@ -999,6 +999,16 @@ fi
 
 if [[ "${DP_MODE}" != "router_dp" ]] && (( DP > 1 )) && ! has_launch_arg "${SERVER_EXTRA_ARGS}" "--data-parallel-size"; then
     SERVER_EXTRA_ARGS="$(normalize_spaces "${SERVER_EXTRA_ARGS} --data-parallel-size ${DP}")"
+fi
+
+# Encoder-only embedding models need an explicit embed task so the server
+# doesn't try to load them for text generation.
+if ! has_launch_arg "${SERVER_EXTRA_ARGS}" "--task"; then
+    case "${MODEL}" in
+        *nomic-embed*|*Embedding*)
+            SERVER_EXTRA_ARGS="$(normalize_spaces "${SERVER_EXTRA_ARGS} --task embed")"
+            ;;
+    esac
 fi
 
 default_parallel_label="$(build_parallel_label "${TP}" "${PIPELINE_PARALLEL}" "${DP}")"
