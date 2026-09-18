@@ -67,6 +67,11 @@ jobs:
       HF_TOKEN_FOR_SCRIPT: ${{ secrets.HF_TOKEN }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Full history so the "Persist sweep results" rebase can compute a
+          # real merge-base; a shallow clone makes unrelated files show up as
+          # bogus add/add conflicts if main moved while the sweep was running.
+          fetch-depth: 0
 
       - name: Validate secret
         shell: bash
