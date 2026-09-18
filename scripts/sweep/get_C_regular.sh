@@ -1001,12 +1001,20 @@ if [[ "${DP_MODE}" != "router_dp" ]] && (( DP > 1 )) && ! has_launch_arg "${SERV
     SERVER_EXTRA_ARGS="$(normalize_spaces "${SERVER_EXTRA_ARGS} --data-parallel-size ${DP}")"
 fi
 
-# Encoder-only embedding models need an explicit embed task so the server
-# doesn't try to load them for text generation.
-if ! has_launch_arg "${SERVER_EXTRA_ARGS}" "--task"; then
+# Encoder-only embedding models need an explicit pooling runner + embed convert
+# so the server doesn't try to load them for text generation. `--task` was
+# removed from the vLLM CLI (replaced by `--runner`/`--convert`) as of the
+# v0.29.0 image. vllm_router_dp_launch.sh already injects this itself for the
+# router_dp path, so only add it here for the non-router_dp launch script.
+if [[ "${DP_MODE}" != "router_dp" ]]; then
     case "${MODEL}" in
         *nomic-embed*|*Embedding*)
-            SERVER_EXTRA_ARGS="$(normalize_spaces "${SERVER_EXTRA_ARGS} --task embed")"
+            if ! has_launch_arg "${SERVER_EXTRA_ARGS}" "--runner"; then
+                SERVER_EXTRA_ARGS="$(normalize_spaces "${SERVER_EXTRA_ARGS} --runner pooling")"
+            fi
+            if ! has_launch_arg "${SERVER_EXTRA_ARGS}" "--convert"; then
+                SERVER_EXTRA_ARGS="$(normalize_spaces "${SERVER_EXTRA_ARGS} --convert embed")"
+            fi
             ;;
     esac
 fi
