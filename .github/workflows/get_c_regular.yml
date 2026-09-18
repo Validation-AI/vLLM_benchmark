@@ -33,6 +33,11 @@ on:
         required: false
         default: true
         type: boolean
+      resume_existing_results:
+        description: Reuse completed manifest rows and existing benchmark logs instead of rerunning them
+        required: false
+        default: true
+        type: boolean
       validate_output_layout_only:
         description: Only validate output paths without running benchmark
         required: false
@@ -155,6 +160,7 @@ jobs:
           export HARDWARE='emr'
           export SERVER_EXTRA_ARGS='${{ inputs.server_extra_args }}'
           export RUN_FROM_CASE_LIST='1'
+          export RESUME='${{ inputs.resume_existing_results && '1' || '0' }}'
           export CONTINUE_ON_CASE_FAILURE='${{ inputs.continue_on_case_failure && '1' || '0' }}'
           export VALIDATE_OUTPUT_LAYOUT_ONLY='${{ inputs.validate_output_layout_only && '1' || '0' }}'
           export CASE_LIST_XLSX="${WORKSPACE}/${{ inputs.case_list_xlsx }}"

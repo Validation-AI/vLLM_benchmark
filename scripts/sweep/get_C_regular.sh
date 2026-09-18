@@ -858,7 +858,7 @@ run_case_list() {
     while IFS=$'\x1f' read -r row_idx model_value tp_value pp_value dp_value dp_mode_value manifest_extra_args last_status_value existing_c_recommended existing_c_regular case_length_in case_length_out case_sla; do
         [[ -z "${row_idx}" ]] && continue
 
-        if [[ "${last_status_value}" == "PASS" && -n "${existing_c_recommended}" && -n "${existing_c_regular}" ]]; then
+        if [[ "${RESUME}" == "1" && "${last_status_value}" == "PASS" && -n "${existing_c_recommended}" && -n "${existing_c_regular}" ]]; then
             echo "Skipping completed case row=${row_idx} model=${model_value} c_recommended=${existing_c_recommended} c_regular=${existing_c_regular}"
             continue
         fi
