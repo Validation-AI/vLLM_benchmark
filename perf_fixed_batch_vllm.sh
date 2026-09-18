@@ -80,7 +80,7 @@ is_positive_number() {
 # return the whole result in one shot and have no token-by-token streaming, so
 # `vllm bench serve` does not print Output token throughput / Mean TTFT / Mean TPOT.
 is_pooling_model() {
-    [[ "${normalized_modelid}" == *bge-reranker* || "${normalized_modelid}" == *nomic-embed* ]]
+    [[ "${normalized_modelid,,}" == *rerank* || "${normalized_modelid,,}" == *embed* ]]
 }
 
 normalize_positive_integer() {
@@ -295,9 +295,9 @@ run_benchmark_once() {
     if [[ "${normalized_modelid}" == openai/whisper* ]]; then
         ensure_whisper_runtime
         vllm bench serve --model "${normalized_modelid}" --dataset-name hf --dataset-path edinburghcstr/ami --hf-subset ihm --hf-split test --random-input-len=${input_len} --random-output-len=${output_len} --num-warmups=${warmups} --ignore-eos --num-prompt ${prompts} --request-rate "${request_rate}" --max-concurrency ${run_concurrency} ${bench_trust_flag} --backend openai-audio --endpoint /v1/audio/transcriptions --port=8000 --host ${address} | tee -a "${log_path}"
-    elif [[ "${normalized_modelid}" == *bge-reranker* ]]; then
+    elif [[ "${normalized_modelid,,}" == *rerank* ]]; then
         vllm bench serve --model "${normalized_modelid}" --dataset-name random-rerank --random-input-len=${input_len} --random-output-len=${output_len} --num-warmups=${warmups} --ignore-eos --num-prompt ${prompts} --request-rate "${request_rate}" --max-concurrency ${run_concurrency} ${bench_trust_flag} --backend vllm-rerank --endpoint /v1/rerank --port=8000 --host ${address} | tee -a "${log_path}"
-    elif [[ "${normalized_modelid}" == *nomic-embed* ]]; then
+    elif [[ "${normalized_modelid,,}" == *embed* ]]; then
         vllm bench serve --model "${normalized_modelid}" --dataset-name random --random-input-len=${input_len} --random-output-len=${output_len} --num-warmups=${warmups} --ignore-eos --num-prompt ${prompts} --request-rate "${request_rate}" --max-concurrency ${run_concurrency} ${bench_trust_flag} --backend openai-embeddings --endpoint /v1/embeddings --port=8000 --host ${address} | tee -a "${log_path}"
     else
         vllm bench serve --model "${normalized_modelid}" --dataset-name random --random-input-len=${input_len} --random-output-len=${output_len} --num-warmups=${warmups} --ignore-eos --num-prompt ${prompts} --request-rate "${request_rate}" --max-concurrency ${run_concurrency} ${bench_trust_flag} --temperature=0 --backend vllm --port=8000 --host ${address} | tee -a "${log_path}"
