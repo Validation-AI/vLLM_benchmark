@@ -92,10 +92,6 @@ on:
         required: false
         default: 3600
         type: string
-      test_mode:
-        required: false
-        default: performance
-        type: string
       tuning_slas:
         required: false
         default: "100,5000"
@@ -103,7 +99,7 @@ on:
       docker_name:
         description: "Full docker image reference to run, e.g. vllm/vllm-openai-cpu:v0.24.0."
         required: true
-        default: vllm/vllm-openai-cpu:v0.24.0
+        default: vllm/vllm-openai-cpu:v0.29.0
         type: string
       openai_api_base:
         required: false
@@ -117,15 +113,6 @@ on:
       max_concurrency:
         required: false
         default: default
-        type: string
-      bs_ratio:
-        description: "Multiplier applied to the persisted batch size in perf_fixed_batch_vllm.sh (batch_size = persisted_batch_size * bs_ratio)."
-        required: false
-        default: "1"
-        type: string
-      tp_backbone:
-        required: false
-        default: mp
         type: string
       row_filter:
         required: false
@@ -170,14 +157,14 @@ jobs:
       ROUTER_STARTUP_TIMEOUT_S: ${{ inputs.router_startup_timeout_s || '3600' }}
       BACKEND: ${{ 'vllm' }}
       DATASET: ${{ 'dummy' }}
-      TEST_MODE: ${{ inputs.test_mode || 'performance' }}
+      TEST_MODE: ${{ 'performance' }}
       TUNING_SLAS: "${{ inputs.tuning_slas || '100,5000' }}"
       DOCKER_NAME: "${{ inputs.docker_name || 'vllm/vllm-openai-cpu:v0.24.0' }}"
       OPENAI_API_BASE: "${{ inputs.openai_api_base || 'http://0.0.0.0:8000/v1' }}"
       LENGTH_CONFIGS: ${{ inputs.length_configs }}
       MAX_CONCURRENCY: ${{ inputs.max_concurrency || 'default' }}
-      BS_RATIO: "${{ inputs.bs_ratio || '1' }}"
-      TP_BACKBONE: ${{ inputs.tp_backbone || 'mp' }}
+      BS_RATIO: "${{ '1' }}"
+      TP_BACKBONE: ${{ 'mp' }}
       ROW_FILTER: ${{ inputs.row_filter }}
       SESSION_ID: ${{ inputs.session_id }}
       BUILD_NUMBER: ${{ github.run_number }}
