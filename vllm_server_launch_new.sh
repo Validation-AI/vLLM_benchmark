@@ -360,9 +360,11 @@ if [[ "$device" == "cpu" ]];then
         common_cpu_env+=("VLLM_CPU_ATTN_SPLIT_KV=0")
         echo "CPU attention split KV disabled for ${modelid}."
     fi
-    auto_bind_enabled=0
-    if [[ "${VLLM_CPU_AUTO_BIND:-0}" == "1" ]]; then
-        auto_bind_enabled=1
+    auto_bind_enabled=1
+    if [[ "${VLLM_CPU_AUTO_BIND:-1}" == "0" ]]; then
+        auto_bind_enabled=0
+    fi
+    if [[ "${auto_bind_enabled}" == "1" ]]; then
         echo "CPU binding mode: auto"
     else
         if ! build_cpu_numa_binding "${para_ranks}"; then

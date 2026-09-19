@@ -264,12 +264,12 @@ dump_router_worker_logs() {
   done
 }
 
-auto_bind_enabled=0
-if [[ "${VLLM_CPU_AUTO_BIND:-0}" == "1" ]]; then
-  auto_bind_enabled=1
-  echo "CPU binding mode: auto (router_dp workers get no CPU_VISIBLE_MEMORY_NODES override)"
-else
+auto_bind_enabled=1
+if [[ "${VLLM_CPU_AUTO_BIND:-1}" == "0" ]]; then
+  auto_bind_enabled=0
   echo "CPU binding mode: manual"
+else
+  echo "CPU binding mode: auto (router_dp workers get no CPU_VISIBLE_MEMORY_NODES override)"
 fi
 
 if [[ "${auto_bind_enabled}" != "1" ]]; then
