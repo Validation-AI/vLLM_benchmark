@@ -1,0 +1,671 @@
+_bk;t=1789711718320~~~ Bootstrapping phases plugin,checkout
+_bk;t=1789711718340~~~ Preparing plugins
+_bk;t=1789711718340~~~ Preparing working directory
+_bk;t=1789711718340[90m# Creating "/workspace/build/buildkite"[0m
+_bk;t=1789711718340[90m$[0m cd /workspace/build/buildkite
+_bk;t=1789711718342[90m$[0m git clone -v -- https://github.com/vllm-project/vllm.git .
+_bk;t=1789711718344Cloning into '.'...
+_bk;t=1789711718488POST git-upload-pack (181 bytes)
+_bk;t=1789711718650POST git-upload-pack (gzip 32308 to 15152 bytes)
+_bk;t=1789711719348remote: Enumerating objects: 290963, done.[K_bk;t=1789711719348
+_bk;t=1789711719348remote: Counting objects:   1% (1/86)[K_bk;t=1789711719348remote: Counting objects:   2% (2/86)[K_bk;t=1789711719348remote: Counting objects:   3% (3/86)[K_bk;t=1789711719348remote: Counting objects:   4% (4/86)[K_bk;t=1789711719348remote: Counting objects:   5% (5/86)[K_bk;t=1789711719348remote: Counting objects:   6% (6/86)[K_bk;t=1789711719348remote: Counting objects:   8% (7/86)[K_bk;t=1789711719348remote: Counting objects:   9% (8/86)[K_bk;t=1789711719348remote: Counting objects:  10% (9/86)[K_bk;t=1789711719348remote: Counting objects:  11% (10/86)[K_bk;t=1789711719348remote: Counting objects:  12% (11/86)[K_bk;t=1789711719348remote: Counting objects:  13% (12/86)[K_bk;t=1789711719348remote: Counting objects:  15% (13/86)[K_bk;t=1789711719348remote: Counting objects:  16% (14/86)[K_bk;t=1789711719348remote: Counting objects:  17% (15/86)[K_bk;t=1789711719348remote: Counting objects:  18% (16/86)[K_bk;t=1789711719348remote: Counting objects:  19% (17/86)[K_bk;t=1789711719348remote: Counting objects:  20% (18/86)[K_bk;t=1789711719348remote: Counting objects:  22% (19/86)[K_bk;t=1789711719348remote: Counting objects:  23% (20/86)[K_bk;t=1789711719348remote: Counting objects:  24% (21/86)[K_bk;t=1789711719348remote: Counting objects:  25% (22/86)[K_bk;t=1789711719348remote: Counting objects:  26% (23/86)[K_bk;t=1789711719348remote: Counting objects:  27% (24/86)[K_bk;t=1789711719348remote: Counting objects:  29% (25/86)[K_bk;t=1789711719348remote: Counting objects:  30% (26/86)[K_bk;t=1789711719348remote: Counting objects:  31% (27/86)[K_bk;t=1789711719348remote: Counting objects:  32% (28/86)[K_bk;t=1789711719348remote: Counting objects:  33% (29/86)[K_bk;t=1789711719348remote: Counting objects:  34% (30/86)[K_bk;t=1789711719348remote: Counting objects:  36% (31/86)[K_bk;t=1789711719348remote: Counting objects:  37% (32/86)[K_bk;t=1789711719348remote: Counting objects:  38% (33/86)[K_bk;t=1789711719348remote: Counting objects:  39% (34/86)[K_bk;t=1789711719348remote: Counting objects:  40% (35/86)[K_bk;t=1789711719348remote: Counting objects:  41% (36/86)[K_bk;t=1789711719348remote: Counting objects:  43% (37/86)[K_bk;t=1789711719348remote: Counting objects:  44% (38/86)[K_bk;t=1789711719348remote: Counting objects:  45% (39/86)[K_bk;t=1789711719348remote: Counting objects:  46% (40/86)[K_bk;t=1789711719348remote: Counting objects:  47% (41/86)[K_bk;t=1789711719348remote: Counting objects:  48% (42/86)[K_bk;t=1789711719348remote: Counting objects:  50% (43/86)[K_bk;t=1789711719348remote: Counting objects:  51% (44/86)[K_bk;t=1789711719348remote: Counting objects:  52% (45/86)[K_bk;t=1789711719348remote: Counting objects:  53% (46/86)[K_bk;t=1789711719348remote: Counting objects:  54% (47/86)[K_bk;t=1789711719348remote: Counting objects:  55% (48/86)[K_bk;t=1789711719348remote: Counting objects:  56% (49/86)[K_bk;t=1789711719348remote: Counting objects:  58% (50/86)[K_bk;t=1789711719348remote: Counting objects:  59% (51/86)[K_bk;t=1789711719348remote: Counting objects:  60% (52/86)[K_bk;t=1789711719348remote: Counting objects:  61% (53/86)[K_bk;t=1789711719348remote: Counting objects:  62% (54/86)[K_bk;t=1789711719348remote: Counting objects:  63% (55/86)[K_bk;t=1789711719348remote: Counting objects:  65% (56/86)[K_bk;t=1789711719348remote: Counting objects:  66% (57/86)[K_bk;t=1789711719348remote: Counting objects:  67% (58/86)[K_bk;t=1789711719348remote: Counting objects:  68% (59/86)[K_bk;t=1789711719348remote: Counting objects:  69% (60/86)[K_bk;t=1789711719348remote: Counting objects:  70% (61/86)[K_bk;t=1789711719348remote: Counting objects:  72% (62/86)[K_bk;t=1789711719348remote: Counting objects:  73% (63/86)[K_bk;t=1789711719348remote: Counting objects:  74% (64/86)[K_bk;t=1789711719348remote: Counting objects:  75% (65/86)[K_bk;t=1789711719348remote: Counting objects:  76% (66/86)[K_bk;t=1789711719348remote: Counting objects:  77% (67/86)[K_bk;t=1789711719348remote: Counting objects:  79% (68/86)[K_bk;t=1789711719348remote: Counting objects:  80% (69/86)[K_bk;t=1789711719348remote: Counting objects:  81% (70/86)[K_bk;t=1789711719348remote: Counting objects:  82% (71/86)[K_bk;t=1789711719348remote: Counting objects:  83% (72/86)[K_bk;t=1789711719348remote: Counting objects:  84% (73/86)[K_bk;t=1789711719348remote: Counting objects:  86% (74/86)[K_bk;t=1789711719348remote: Counting objects:  87% (75/86)[K_bk;t=1789711719348remote: Counting objects:  88% (76/86)[K_bk;t=1789711719348remote: Counting objects:  89% (77/86)[K_bk;t=1789711719348remote: Counting objects:  90% (78/86)[K_bk;t=1789711719348remote: Counting objects:  91% (79/86)[K_bk;t=1789711719348remote: Counting objects:  93% (80/86)[K_bk;t=1789711719348remote: Counting objects:  94% (81/86)[K_bk;t=1789711719348remote: Counting objects:  95% (82/86)[K_bk;t=1789711719348remote: Counting objects:  96% (83/86)[K_bk;t=1789711719348remote: Counting objects:  97% (84/86)[K_bk;t=1789711719348remote: Counting objects:  98% (85/86)[K_bk;t=1789711719348remote: Counting objects: 100% (86/86)[K_bk;t=1789711719349remote: Counting objects: 100% (86/86), done.[K_bk;t=1789711719349
+_bk;t=1789711719349remote: Compressing objects:   1% (1/70)[K_bk;t=1789711719349remote: Compressing objects:   2% (2/70)[K_bk;t=1789711719349remote: Compressing objects:   4% (3/70)[K_bk;t=1789711719349remote: Compressing objects:   5% (4/70)[K_bk;t=1789711719349remote: Compressing objects:   7% (5/70)[K_bk;t=1789711719349remote: Compressing objects:   8% (6/70)[K_bk;t=1789711719349remote: Compressing objects:  10% (7/70)[K_bk;t=1789711719349remote: Compressing objects:  11% (8/70)[K_bk;t=1789711719349remote: Compressing objects:  12% (9/70)[K_bk;t=1789711719349remote: Compressing objects:  14% (10/70)[K_bk;t=1789711719349remote: Compressing objects:  15% (11/70)[K_bk;t=1789711719349remote: Compressing objects:  17% (12/70)[K_bk;t=1789711719349remote: Compressing objects:  18% (13/70)[K_bk;t=1789711719349remote: Compressing objects:  20% (14/70)[K_bk;t=1789711719349remote: Compressing objects:  21% (15/70)[K_bk;t=1789711719349remote: Compressing objects:  22% (16/70)[K_bk;t=1789711719349remote: Compressing objects:  24% (17/70)[K_bk;t=1789711719349remote: Compressing objects:  25% (18/70)[K_bk;t=1789711719349remote: Compressing objects:  27% (19/70)[K_bk;t=1789711719349remote: Compressing objects:  28% (20/70)[K_bk;t=1789711719349remote: Compressing objects:  30% (21/70)[K_bk;t=1789711719349remote: Compressing objects:  31% (22/70)[K_bk;t=1789711719349remote: Compressing objects:  32% (23/70)[K_bk;t=1789711719349remote: Compressing objects:  34% (24/70)[K_bk;t=1789711719349remote: Compressing objects:  35% (25/70)[K_bk;t=1789711719349remote: Compressing objects:  37% (26/70)[K_bk;t=1789711719349remote: Compressing objects:  38% (27/70)[K_bk;t=1789711719349remote: Compressing objects:  40% (28/70)[K_bk;t=1789711719349remote: Compressing objects:  41% (29/70)[K_bk;t=1789711719349remote: Compressing objects:  42% (30/70)[K_bk;t=1789711719349remote: Compressing objects:  44% (31/70)[K_bk;t=1789711719349remote: Compressing objects:  45% (32/70)[K_bk;t=1789711719349remote: Compressing objects:  47% (33/70)[K_bk;t=1789711719349remote: Compressing objects:  48% (34/70)[K_bk;t=1789711719349remote: Compressing objects:  50% (35/70)[K_bk;t=1789711719349remote: Compressing objects:  51% (36/70)[K_bk;t=1789711719349remote: Compressing objects:  52% (37/70)[K_bk;t=1789711719349remote: Compressing objects:  54% (38/70)[K_bk;t=1789711719349remote: Compressing objects:  55% (39/70)[K_bk;t=1789711719349remote: Compressing objects:  57% (40/70)[K_bk;t=1789711719349remote: Compressing objects:  58% (41/70)[K_bk;t=1789711719349remote: Compressing objects:  60% (42/70)[K_bk;t=1789711719349remote: Compressing objects:  61% (43/70)[K_bk;t=1789711719349remote: Compressing objects:  62% (44/70)[K_bk;t=1789711719349remote: Compressing objects:  64% (45/70)[K_bk;t=1789711719349remote: Compressing objects:  65% (46/70)[K_bk;t=1789711719349remote: Compressing objects:  67% (47/70)[K_bk;t=1789711719349remote: Compressing objects:  68% (48/70)[K_bk;t=1789711719349remote: Compressing objects:  70% (49/70)[K_bk;t=1789711719349remote: Compressing objects:  71% (50/70)[K_bk;t=1789711719349remote: Compressing objects:  72% (51/70)[K_bk;t=1789711719349remote: Compressing objects:  74% (52/70)[K_bk;t=1789711719349remote: Compressing objects:  75% (53/70)[K_bk;t=1789711719349remote: Compressing objects:  77% (54/70)[K_bk;t=1789711719349remote: Compressing objects:  78% (55/70)[K_bk;t=1789711719349remote: Compressing objects:  80% (56/70)[K_bk;t=1789711719349remote: Compressing objects:  81% (57/70)[K_bk;t=1789711719349remote: Compressing objects:  82% (58/70)[K_bk;t=1789711719349remote: Compressing objects:  84% (59/70)[K_bk;t=1789711719349remote: Compressing objects:  85% (60/70)[K_bk;t=1789711719349remote: Compressing objects:  87% (61/70)[K_bk;t=1789711719349remote: Compressing objects:  88% (62/70)[K_bk;t=1789711719349remote: Compressing objects:  90% (63/70)[K_bk;t=1789711719349remote: Compressing objects:  91% (64/70)[K_bk;t=1789711719349remote: Compressing objects:  92% (65/70)[K_bk;t=1789711719349remote: Compressing objects:  94% (66/70)[K_bk;t=1789711719349remote: Compressing objects:  95% (67/70)[K_bk;t=1789711719349remote: Compressing objects:  97% (68/70)[K_bk;t=1789711719349remote: Compressing objects:  98% (69/70)[K_bk;t=1789711719349remote: Compressing objects: 100% (70/70)[K_bk;t=1789711719349remote: Compressing objects: 100% (70/70), done.[K_bk;t=1789711719349
+_bk;t=1789711719349Receiving objects:   0% (1/290963)Receiving objects:   1% (2910/290963)Receiving objects:   2% (5820/290963)Receiving objects:   3% (8729/290963)Receiving objects:   4% (11639/290963)Receiving objects:   5% (14549/290963)Receiving objects:   6% (17458/290963), 12.88 MiB | 25.74 MiB/sReceiving objects:   7% (20368/290963), 12.88 MiB | 25.74 MiB/sReceiving objects:   8% (23278/290963), 12.88 MiB | 25.74 MiB/s_bk;t=1789711720353Receiving objects:   8% (25182/290963), 35.46 MiB | 35.31 MiB/sReceiving objects:   9% (26187/290963), 35.46 MiB | 35.31 MiB/sReceiving objects:  10% (29097/290963), 35.46 MiB | 35.31 MiB/sReceiving objects:  11% (32006/290963), 54.32 MiB | 36.11 MiB/sReceiving objects:  12% (34916/290963), 54.32 MiB | 36.11 MiB/sReceiving objects:  13% (37826/290963), 54.32 MiB | 36.11 MiB/sReceiving objects:  13% (38666/290963), 54.32 MiB | 36.11 MiB/s_bk;t=1789711721491Receiving objects:  14% (40735/290963), 69.96 MiB | 34.91 MiB/sReceiving objects:  15% (43645/290963), 69.96 MiB | 34.91 MiB/sReceiving objects:  16% (46555/290963), 85.57 MiB | 34.17 MiB/sReceiving objects:  17% (49464/290963), 85.57 MiB | 34.17 MiB/sReceiving objects:  18% (52374/290963), 85.57 MiB | 34.17 MiB/sReceiving objects:  19% (55283/290963), 85.57 MiB | 34.17 MiB/sReceiving objects:  20% (58193/290963), 85.57 MiB | 34.17 MiB/sReceiving objects:  20% (60033/290963), 85.57 MiB | 34.17 MiB/sReceiving objects:  21% (61103/290963), 104.19 MiB | 34.68 MiB/sReceiving objects:  22% (64012/290963), 104.19 MiB | 34.68 MiB/s_bk;t=1789711722525Receiving objects:  23% (66922/290963), 104.19 MiB | 34.68 MiB/sReceiving objects:  24% (69832/290963), 104.19 MiB | 34.68 MiB/sReceiving objects:  25% (72741/290963), 104.19 MiB | 34.68 MiB/sReceiving objects:  26% (75651/290963), 104.19 MiB | 34.68 MiB/sReceiving objects:  27% (78561/290963), 123.86 MiB | 35.35 MiB/sReceiving objects:  28% (81470/290963), 123.86 MiB | 35.35 MiB/sReceiving objects:  29% (84380/290963), 123.86 MiB | 35.35 MiB/sReceiving objects:  30% (87289/290963), 123.86 MiB | 35.35 MiB/sReceiving objects:  30% (90044/290963), 123.86 MiB | 35.35 MiB/sReceiving objects:  31% (90199/290963), 142.20 MiB | 35.51 MiB/sReceiving objects:  32% (93109/290963), 142.20 MiB | 35.51 MiB/sReceiving objects:  33% (96018/290963), 142.20 MiB | 35.51 MiB/s_bk;t=1789711723586Receiving objects:  34% (98928/290963), 142.20 MiB | 35.51 MiB/sReceiving objects:  35% (101838/290963), 142.20 MiB | 35.51 MiB/sReceiving objects:  36% (104747/290963), 142.20 MiB | 35.51 MiB/sReceiving objects:  37% (107657/290963), 142.20 MiB | 35.51 MiB/sReceiving objects:  38% (110566/290963), 142.20 MiB | 35.51 MiB/sReceiving objects:  39% (113476/290963), 142.20 MiB | 35.51 MiB/sReceiving objects:  40% (116386/290963), 164.74 MiB | 36.58 MiB/sReceiving objects:  41% (119295/290963), 164.74 MiB | 36.58 MiB/sReceiving objects:  42% (122205/290963), 164.74 MiB | 36.58 MiB/sReceiving objects:  43% (125115/290963), 164.74 MiB | 36.58 MiB/sReceiving objects:  44% (128024/290963), 164.74 MiB | 36.58 MiB/sReceiving objects:  45% (130934/290963), 164.74 MiB | 36.58 MiB/sReceiving objects:  45% (131100/290963), 164.74 MiB | 36.58 MiB/sReceiving objects:  46% (133843/290963), 184.62 MiB | 38.13 MiB/sReceiving objects:  47% (136753/290963), 184.62 MiB | 38.13 MiB/s_bk;t=1789711724594Receiving objects:  48% (139663/290963), 184.62 MiB | 38.13 MiB/sReceiving objects:  49% (142572/290963), 184.62 MiB | 38.13 MiB/sReceiving objects:  50% (145482/290963), 184.62 MiB | 38.13 MiB/sReceiving objects:  51% (148392/290963), 184.62 MiB | 38.13 MiB/sReceiving objects:  52% (151301/290963), 184.62 MiB | 38.13 MiB/sReceiving objects:  53% (154211/290963), 205.03 MiB | 37.68 MiB/sReceiving objects:  54% (157121/290963), 205.03 MiB | 37.68 MiB/sReceiving objects:  55% (160030/290963), 205.03 MiB | 37.68 MiB/sReceiving objects:  56% (162940/290963), 205.03 MiB | 37.68 MiB/sReceiving objects:  57% (165849/290963), 205.03 MiB | 37.68 MiB/sReceiving objects:  58% (168759/290963), 205.03 MiB | 37.68 MiB/sReceiving objects:  59% (171669/290963), 205.03 MiB | 37.68 MiB/sReceiving objects:  60% (174578/290963), 205.03 MiB | 37.68 MiB/sReceiving objects:  61% (177488/290963), 205.03 MiB | 37.68 MiB/sReceiving objects:  62% (180398/290963), 205.03 MiB | 37.68 MiB/sReceiving objects:  63% (183307/290963), 205.03 MiB | 37.68 MiB/sReceiving objects:  64% (186217/290963), 205.03 MiB | 37.68 MiB/sReceiving objects:  64% (187731/290963), 205.03 MiB | 37.68 MiB/sReceiving objects:  65% (189126/290963), 229.11 MiB | 38.85 MiB/sReceiving objects:  66% (192036/290963), 229.11 MiB | 38.85 MiB/sReceiving objects:  67% (194946/290963), 229.11 MiB | 38.85 MiB/sReceiving objects:  68% (197855/290963), 229.11 MiB | 38.85 MiB/sReceiving objects:  69% (200765/290963), 229.11 MiB | 38.85 MiB/s_bk;t=1789711725645Receiving objects:  70% (203675/290963), 229.11 MiB | 38.85 MiB/sReceiving objects:  71% (206584/290963), 229.11 MiB | 38.85 MiB/sReceiving objects:  72% (209494/290963), 229.11 MiB | 38.85 MiB/sReceiving objects:  73% (212403/290963), 229.11 MiB | 38.85 MiB/sReceiving objects:  74% (215313/290963), 229.11 MiB | 38.85 MiB/sReceiving objects:  75% (218223/290963), 229.11 MiB | 38.85 MiB/sReceiving objects:  76% (221132/290963), 249.11 MiB | 39.82 MiB/sReceiving objects:  77% (224042/290963), 249.11 MiB | 39.82 MiB/sReceiving objects:  78% (226952/290963), 249.11 MiB | 39.82 MiB/sReceiving objects:  79% (229861/290963), 249.11 MiB | 39.82 MiB/sReceiving objects:  80% (232771/290963), 249.11 MiB | 39.82 MiB/sReceiving objects:  81% (235681/290963), 249.11 MiB | 39.82 MiB/sReceiving objects:  82% (238590/290963), 249.11 MiB | 39.82 MiB/sReceiving objects:  83% (241500/290963), 249.11 MiB | 39.82 MiB/sReceiving objects:  84% (244409/290963), 249.11 MiB | 39.82 MiB/sReceiving objects:  85% (247319/290963), 249.11 MiB | 39.82 MiB/sReceiving objects:  86% (250229/290963), 249.11 MiB | 39.82 MiB/sReceiving objects:  87% (253138/290963), 249.11 MiB | 39.82 MiB/sReceiving objects:  88% (256048/290963), 249.11 MiB | 39.82 MiB/sReceiving objects:  88% (258456/290963), 249.11 MiB | 39.82 MiB/sReceiving objects:  89% (258958/290963), 268.83 MiB | 40.73 MiB/sReceiving objects:  90% (261867/290963), 268.83 MiB | 40.73 MiB/sReceiving objects:  91% (264777/290963), 268.83 MiB | 40.73 MiB/sReceiving objects:  92% (267686/290963), 268.83 MiB | 40.73 MiB/sReceiving objects:  93% (270596/290963), 268.83 MiB | 40.73 MiB/sReceiving objects:  94% (273506/290963), 268.83 MiB | 40.73 MiB/sReceiving objects:  95% (276415/290963), 268.83 MiB | 40.73 MiB/sReceiving objects:  96% (279325/290963), 268.83 MiB | 40.73 MiB/sReceiving objects:  97% (282235/290963), 268.83 MiB | 40.73 MiB/s_bk;t=1789711726654Receiving objects:  98% (285144/290963), 268.83 MiB | 40.73 MiB/sReceiving objects:  99% (288054/290963), 268.83 MiB | 40.73 MiB/sremote: Total 290963 (delta 34), reused 16 (delta 16), pack-reused 290877 (from 3)[K_bk;t=1789711726735
+_bk;t=1789711726738Receiving objects: 100% (290963/290963), 268.83 MiB | 40.73 MiB/sReceiving objects: 100% (290963/290963), 282.57 MiB | 38.24 MiB/s, done.
+_bk;t=1789711726812Resolving deltas:   0% (0/223882)Resolving deltas:   1% (2241/223882)Resolving deltas:   2% (4478/223882)Resolving deltas:   3% (6719/223882)Resolving deltas:   4% (8956/223882)Resolving deltas:   5% (11196/223882)Resolving deltas:   6% (13435/223882)Resolving deltas:   7% (15677/223882)Resolving deltas:   8% (17911/223882)Resolving deltas:   9% (20151/223882)Resolving deltas:   9% (21453/223882)_bk;t=1789711727871Resolving deltas:  10% (22396/223882)Resolving deltas:  11% (24629/223882)Resolving deltas:  12% (26866/223882)Resolving deltas:  13% (29108/223882)Resolving deltas:  14% (31344/223882)Resolving deltas:  15% (33583/223882)Resolving deltas:  16% (35823/223882)Resolving deltas:  17% (38061/223882)Resolving deltas:  17% (38399/223882)_bk;t=1789711728899Resolving deltas:  18% (40299/223882)Resolving deltas:  19% (42541/223882)Resolving deltas:  20% (44779/223882)Resolving deltas:  21% (47016/223882)Resolving deltas:  22% (49256/223882)Resolving deltas:  23% (51493/223882)Resolving deltas:  24% (53733/223882)Resolving deltas:  25% (55971/223882)Resolving deltas:  26% (58210/223882)Resolving deltas:  27% (60451/223882)Resolving deltas:  27% (62354/223882)Resolving deltas:  28% (62687/223882)Resolving deltas:  29% (64926/223882)_bk;t=1789711729929Resolving deltas:  30% (67167/223882)Resolving deltas:  31% (69407/223882)Resolving deltas:  32% (71643/223882)Resolving deltas:  33% (73882/223882)Resolving deltas:  34% (76120/223882)Resolving deltas:  35% (78359/223882)Resolving deltas:  36% (80602/223882)Resolving deltas:  37% (82837/223882)Resolving deltas:  38% (85083/223882)Resolving deltas:  39% (87314/223882)Resolving deltas:  39% (89293/223882)Resolving deltas:  40% (89554/223882)_bk;t=1789711730936Resolving deltas:  41% (91796/223882)Resolving deltas:  42% (94035/223882)Resolving deltas:  43% (96270/223882)Resolving deltas:  44% (98517/223882)Resolving deltas:  45% (100747/223882)Resolving deltas:  46% (102988/223882)Resolving deltas:  47% (105227/223882)Resolving deltas:  48% (107465/223882)Resolving deltas:  49% (109703/223882)Resolving deltas:  50% (111942/223882)Resolving deltas:  50% (114121/223882)Resolving deltas:  51% (114180/223882)Resolving deltas:  52% (116419/223882)Resolving deltas:  53% (118659/223882)_bk;t=1789711731992Resolving deltas:  54% (120900/223882)Resolving deltas:  55% (123137/223882)Resolving deltas:  56% (125374/223882)Resolving deltas:  57% (127613/223882)Resolving deltas:  58% (129852/223882)Resolving deltas:  59% (132091/223882)Resolving deltas:  60% (134337/223882)Resolving deltas:  61% (136569/223882)Resolving deltas:  62% (138807/223882)Resolving deltas:  63% (141048/223882)Resolving deltas:  64% (143286/223882)Resolving deltas:  65% (145524/223882)Resolving deltas:  66% (147764/223882)Resolving deltas:  67% (150003/223882)Resolving deltas:  67% (152229/223882)Resolving deltas:  68% (152240/223882)Resolving deltas:  69% (154479/223882)Resolving deltas:  70% (156718/223882)_bk;t=1789711733018Resolving deltas:  71% (158957/223882)Resolving deltas:  72% (161196/223882)Resolving deltas:  73% (163434/223882)Resolving deltas:  74% (165674/223882)Resolving deltas:  75% (167913/223882)Resolving deltas:  76% (170151/223882)Resolving deltas:  77% (172391/223882)Resolving deltas:  78% (174628/223882)Resolving deltas:  79% (176867/223882)Resolving deltas:  80% (179106/223882)Resolving deltas:  81% (181346/223882)Resolving deltas:  82% (183586/223882)Resolving deltas:  83% (185823/223882)Resolving deltas:  84% (188061/223882)Resolving deltas:  85% (190304/223882)Resolving deltas:  86% (192539/223882)Resolving deltas:  87% (194778/223882)Resolving deltas:  88% (197018/223882)Resolving deltas:  89% (199255/223882)Resolving deltas:  89% (199313/223882)Resolving deltas:  90% (201495/223882)Resolving deltas:  91% (203733/223882)Resolving deltas:  92% (205973/223882)_bk;t=1789711734022Resolving deltas:  93% (208216/223882)Resolving deltas:  94% (210451/223882)Resolving deltas:  95% (212688/223882)Resolving deltas:  96% (214927/223882)Resolving deltas:  97% (217166/223882)Resolving deltas:  98% (219407/223882)Resolving deltas:  99% (221644/223882)Resolving deltas: 100% (223882/223882)Resolving deltas: 100% (223882/223882), done.
+_bk;t=1789711735544[90m$[0m git clean -ffxdq
+_bk;t=1789711735560[90m$[0m git fetch -v --prune -- origin 39e33db7f3b10ebd3aca6a0008f2990978f118e7
+_bk;t=1789711735802POST git-upload-pack (134 bytes)
+_bk;t=1789711736083From https://github.com/vllm-project/vllm
+_bk;t=1789711736083 * branch                  39e33db7f3b10ebd3aca6a0008f2990978f118e7 -> FETCH_HEAD
+_bk;t=1789711736088[90m$[0m git checkout -f 39e33db7f3b10ebd3aca6a0008f2990978f118e7
+_bk;t=1789711736594Note: switching to '39e33db7f3b10ebd3aca6a0008f2990978f118e7'.
+_bk;t=1789711736594
+_bk;t=1789711736594You are in 'detached HEAD' state. You can look around, make experimental
+_bk;t=1789711736594changes and commit them, and you can discard any commits you make in this
+_bk;t=1789711736594state without impacting any branches by switching back to a branch.
+_bk;t=1789711736594
+_bk;t=1789711736594If you want to create a new branch to retain commits you create, you may
+_bk;t=1789711736594do so (now or later) by using -c with the switch command. Example:
+_bk;t=1789711736594
+_bk;t=1789711736594  git switch -c <new-branch-name>
+_bk;t=1789711736594
+_bk;t=1789711736594Or undo this operation with:
+_bk;t=1789711736594
+_bk;t=1789711736594  git switch -
+_bk;t=1789711736594
+_bk;t=1789711736594Turn off this advice by setting config variable advice.detachedHead to false
+_bk;t=1789711736594
+_bk;t=1789711736594HEAD is now at 39e33db7f3 [Frontend] Fix the parsing of missing `string=` in DeepSeek V4 (#56271)
+_bk;t=1789711736595[90m# Cleaning again to catch any post-checkout changes[0m
+_bk;t=1789711736595[90m$[0m git clean -ffxdq
+_bk;t=1789711736611[90m# Checking to see if git commit information needs to be sent to Buildkite...[0m
+_bk;t=1789711736611[90m# BUILDKITE_COMMIT is already resolved and meta-data populated, skipping[0m
+_bk;t=1789711737157~~~ Bootstrapping phases plugin,command
+_bk;t=1789711737181~~~ Preparing plugins
+_bk;t=1789711737181[90m$[0m cd /workspace/build/buildkite
+_bk;t=1789711737181~~~ Running commands
+_bk;t=1789711737181[90m$[0m cd /vllm-workspace/tests
+_bk;t=1789711737181echo "--- :nvidia: GPU Info"
+_bk;t=1789711737181(command nvidia-smi || true)
+_bk;t=1789711737181echo "--- :gear: CUDA Coredump Setup"
+_bk;t=1789711737181export CUDA_ENABLE_COREDUMP_ON_EXCEPTION=1 && export CUDA_COREDUMP_SHOW_PROGRESS=1 && export CUDA_COREDUMP_GENERATION_FLAGS="skip_nonrelocated_elf_images,skip_global_memory,skip_shared_memory,skip_local_memory,skip_constbank_memory"
+_bk;t=1789711737181ci_otel_start() { :; }; ci_otel_finish() { :; }; ci_otel_run() { shift 2; env "$@"; return $?; }; CI_INFRA_OTEL_DIR="${CI_INFRA_OTEL_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || :)/.buildkite/scripts/ci-otel}"; export CI_INFRA_OTEL_DIR; if [ -f "$CI_INFRA_OTEL_DIR/ci_otel.sh" ] && sh -n "$CI_INFRA_OTEL_DIR/ci_otel.sh" && . "$CI_INFRA_OTEL_DIR/ci_otel.sh"; then :; else echo "vLLM CI OTel: tracing setup skipped" >&2 || :; fi
+_bk;t=1789711737181CI_OVERALL_STATUS=0
+_bk;t=1789711737181echo "+++ :test_tube: Command (1/4): pytest -v -s kernels/attention/test_flashmla.py"
+_bk;t=1789711737181{ ci_otel_run 1 "pytest -v -s kernels/attention/test_flashmla.py" pytest -v -s kernels/attention/test_flashmla.py
+_bk;t=1789711737181} || CI_OVERALL_STATUS=1
+_bk;t=1789711737181echo "+++ :test_tube: Command (2/4): pytest -v -s kernels/attention/test_flashmla_sparse.py"
+_bk;t=1789711737181{ ci_otel_run 2 "pytest -v -s kernels/attention/test_flashmla_sparse.py" pytest -v -s kernels/attention/test_flashmla_sparse.py
+_bk;t=1789711737181} || CI_OVERALL_STATUS=1
+_bk;t=1789711737181echo "+++ :test_tube: Command (3/4): pytest -v -s kernels/attention/test_flashinfer_mla_decode.py"
+_bk;t=1789711737181{ ci_otel_run 3 "pytest -v -s kernels/attention/test_flashinfer_mla_decode.py" pytest -v -s kernels/attention/test_flashinfer_mla_decode.py
+_bk;t=1789711737181} || CI_OVERALL_STATUS=1
+_bk;t=1789711737181echo "+++ :test_tube: Command (4/4): pytest -v -s kernels/attention/test_mla_cross_layer_kernel_equivalence.py"
+_bk;t=1789711737181{ ci_otel_run 4 "pytest -v -s kernels/attention/test_mla_cross_layer_kernel_equivalence.py" pytest -v -s kernels/attention/test_mla_cross_layer_kernel_equivalence.py
+_bk;t=1789711737181} || CI_OVERALL_STATUS=1
+_bk;t=1789711737181exit $CI_OVERALL_STATUS
+_bk;t=1789711737183--- :nvidia: GPU Info
+_bk;t=1789711737201Fri Sep 18 06:08:57 2026       
+_bk;t=1789711737201+-----------------------------------------------------------------------------------------+
+_bk;t=1789711737201| NVIDIA-SMI 580.95.05              Driver Version: 580.95.05      CUDA Version: 13.0     |
+_bk;t=1789711737201+-----------------------------------------+------------------------+----------------------+
+_bk;t=1789711737201| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+_bk;t=1789711737201| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+_bk;t=1789711737201|                                         |                        |               MIG M. |
+_bk;t=1789711737201|=========================================+========================+======================|
+_bk;t=1789711737220|   0  NVIDIA H100 80GB HBM3          On  |   00000000:E9:00.0 Off |                    0 |
+_bk;t=1789711737220| N/A   29C    P0             69W /  700W |       0MiB /  81559MiB |      0%      Default |
+_bk;t=1789711737220|                                         |                        |             Disabled |
+_bk;t=1789711737220+-----------------------------------------+------------------------+----------------------+
+_bk;t=1789711737220
+_bk;t=1789711737220+-----------------------------------------------------------------------------------------+
+_bk;t=1789711737220| Processes:                                                                              |
+_bk;t=1789711737220|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+_bk;t=1789711737220|        ID   ID                                                               Usage      |
+_bk;t=1789711737220|=========================================================================================|
+_bk;t=1789711737220|  No running processes found                                                             |
+_bk;t=1789711737220+-----------------------------------------------------------------------------------------+
+_bk;t=1789711737309--- :gear: CUDA Coredump Setup
+_bk;t=1789711737390+++ :test_tube: Command (1/4): pytest -v -s kernels/attention/test_flashmla.py
+_bk;t=1789711737463vLLM CI OTel: non-root GPU sampler unavailable; sampling disabled
+_bk;t=1789711763522[1m===================================================================== test session starts ======================================================================[0m
+_bk;t=1789711763522platform linux -- Python 3.12.3, pytest-9.1.0, pluggy-1.5.0 -- /usr/bin/python3
+_bk;t=1789711763527cachedir: .pytest_cache
+_bk;t=1789711763527hypothesis profile 'ci' -> database=None, deadline=None, print_blob=True, derandomize=True, suppress_health_check=[HealthCheck.too_slow]
+_bk;t=1789711763527rootdir: /vllm-workspace
+_bk;t=1789711763527configfile: pyproject.toml
+_bk;t=1789711763527plugins: schemathesis-4.21.6, timeout-2.3.1, hypothesis-6.131.0, buildkite-test-collector-0.1.9, anyio-4.14.1, cov-6.3.0, rerunfailures-14.0, shard-0.1.2, forked-1.6.0, mock-3.14.0, asyncio-1.4.0
+_bk;t=1789711763527asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+_bk;t=1789711763527[1mcollecting ... [0m[1mcollected 144 items                                                                                                                                            [0m
+_bk;t=1789711763586Running 144 items in this shard: tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-16-4096-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-16-4096-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-16-8192-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-16-8192-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-16-16384-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-16-16384-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-32-4096-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-32-4096-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-32-8192-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-32-8192-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-32-16384-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-32-16384-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-64-4096-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-64-4096-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-64-8192-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-64-8192-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-64-16384-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-64-16384-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-128-4096-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-128-4096-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-128-8192-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-128-8192-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-128-16384-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-128-16384-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-16-4096-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-16-4096-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-16-8192-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-16-8192-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-16-16384-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-16-16384-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-32-4096-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-32-4096-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-32-8192-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-32-8192-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-32-16384-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-32-16384-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-64-4096-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-64-4096-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-64-8192-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-64-8192-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-64-16384-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-64-16384-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-128-4096-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-128-4096-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-128-8192-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-128-8192-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-128-16384-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-128-16384-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-16-4096-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-16-4096-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-16-8192-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-16-8192-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-16-16384-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-16-16384-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-32-4096-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-32-4096-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-32-8192-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-32-8192-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-32-16384-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-32-16384-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-64-4096-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-64-4096-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-64-8192-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-64-8192-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-64-16384-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-64-16384-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-128-4096-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-128-4096-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-128-8192-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-128-8192-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-128-16384-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-128-16384-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-16-4096-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-16-4096-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-16-8192-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-16-8192-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-16-16384-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-16-16384-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-32-4096-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-32-4096-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-32-8192-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-32-8192-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-32-16384-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-32-16384-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-64-4096-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-64-4096-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-64-8192-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-64-8192-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-64-16384-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-64-16384-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-128-4096-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-128-4096-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-128-8192-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-128-8192-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-128-16384-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-128-16384-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-16-4096-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-16-4096-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-16-8192-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-16-8192-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-16-16384-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-16-16384-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-32-4096-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-32-4096-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-32-8192-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-32-8192-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-32-16384-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-32-16384-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-64-4096-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-64-4096-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-64-8192-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-64-8192-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-64-16384-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-64-16384-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-128-4096-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-128-4096-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-128-8192-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-128-8192-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-128-16384-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-128-16384-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-16-4096-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-16-4096-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-16-8192-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-16-8192-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-16-16384-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-16-16384-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-32-4096-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-32-4096-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-32-8192-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-32-8192-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-32-16384-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-32-16384-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-64-4096-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-64-4096-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-64-8192-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-64-8192-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-64-16384-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-64-16384-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-128-4096-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-128-4096-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-128-8192-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-128-8192-2-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-128-16384-1-128], tests/kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-128-16384-2-128]
+_bk;t=1789711763587
+_bk;t=1789711763587kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-16-4096-1-128] b=128, s_q=1, mean_sk=4096, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.bfloat16
+_bk;t=17897117654390.231 ms, 79 TFLOPS, 2630 GB/s
+_bk;t=1789711765440[32mPASSED[0m
+_bk;t=1789711765462kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-16-4096-2-128] b=128, s_q=2, mean_sk=4096, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.bfloat16
+_bk;t=17897117656990.232 ms, 157 TFLOPS, 2639 GB/s
+_bk;t=1789711765699[32mPASSED[0m
+_bk;t=1789711765700kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-16-8192-1-128] b=128, s_q=1, mean_sk=8192, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.bfloat16
+_bk;t=17897117659290.431 ms, 85 TFLOPS, 2815 GB/s
+_bk;t=1789711765929[32mPASSED[0m
+_bk;t=1789711765931kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-16-8192-2-128] b=128, s_q=2, mean_sk=8192, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.bfloat16
+_bk;t=17897117661990.432 ms, 169 TFLOPS, 2818 GB/s
+_bk;t=1789711766199[32mPASSED[0m
+_bk;t=1789711766200kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-16-16384-1-128] b=128, s_q=1, mean_sk=16384, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.bfloat16
+_bk;t=17897117666510.838 ms, 87 TFLOPS, 2889 GB/s
+_bk;t=1789711766652[32mPASSED[0m
+_bk;t=1789711766653kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-16-16384-2-128] b=128, s_q=2, mean_sk=16384, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.bfloat16
+_bk;t=17897117670700.836 ms, 175 TFLOPS, 2900 GB/s
+_bk;t=1789711767070[32mPASSED[0m
+_bk;t=1789711767072kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-32-4096-1-128] b=128, s_q=1, mean_sk=4096, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.bfloat16
+_bk;t=17897117672900.232 ms, 157 TFLOPS, 2639 GB/s
+_bk;t=1789711767291[32mPASSED[0m
+_bk;t=1789711767292kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-32-4096-2-128] b=128, s_q=2, mean_sk=4096, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.bfloat16
+_bk;t=17897117675320.234 ms, 312 TFLOPS, 2656 GB/s
+_bk;t=1789711767533[32mPASSED[0m
+_bk;t=1789711767534kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-32-8192-1-128] b=128, s_q=1, mean_sk=8192, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.bfloat16
+_bk;t=17897117678390.432 ms, 169 TFLOPS, 2820 GB/s
+_bk;t=1789711767839[32mPASSED[0m
+_bk;t=1789711767840kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-32-8192-2-128] b=128, s_q=2, mean_sk=8192, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.bfloat16
+_bk;t=17897117681900.434 ms, 336 TFLOPS, 2823 GB/s
+_bk;t=1789711768191[32mPASSED[0m
+_bk;t=1789711768192kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-32-16384-1-128] b=128, s_q=1, mean_sk=16384, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.bfloat16
+_bk;t=17897117686900.836 ms, 175 TFLOPS, 2901 GB/s
+_bk;t=1789711768691[32mPASSED[0m
+_bk;t=1789711768692kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-32-16384-2-128] b=128, s_q=2, mean_sk=16384, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.bfloat16
+_bk;t=17897117692280.854 ms, 342 TFLOPS, 2849 GB/s
+_bk;t=1789711769228[32mPASSED[0m
+_bk;t=1789711769230kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-64-4096-1-128] b=128, s_q=1, mean_sk=4096, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.bfloat16
+_bk;t=17897117695150.234 ms, 312 TFLOPS, 2654 GB/s
+_bk;t=1789711769515[32mPASSED[0m
+_bk;t=1789711769516kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-64-4096-2-128] b=128, s_q=2, mean_sk=4096, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.bfloat16
+_bk;t=17897117698360.286 ms, 511 TFLOPS, 2240 GB/s
+_bk;t=1789711769837[32mPASSED[0m
+_bk;t=1789711769838kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-64-8192-1-128] b=128, s_q=1, mean_sk=8192, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.bfloat16
+_bk;t=17897117702940.434 ms, 337 TFLOPS, 2826 GB/s
+_bk;t=1789711770294[32mPASSED[0m
+_bk;t=1789711770296kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-64-8192-2-128] b=128, s_q=2, mean_sk=8192, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.bfloat16
+_bk;t=17897117707660.552 ms, 529 TFLOPS, 2254 GB/s
+_bk;t=1789711770767[32mPASSED[0m
+_bk;t=1789711770768kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-64-16384-1-128] b=128, s_q=1, mean_sk=16384, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.bfloat16
+_bk;t=17897117716030.853 ms, 342 TFLOPS, 2852 GB/s
+_bk;t=1789711771603[32mPASSED[0m
+_bk;t=1789711771604kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-64-16384-2-128] b=128, s_q=2, mean_sk=16384, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.bfloat16
+_bk;t=17897117724651.053 ms, 555 TFLOPS, 2329 GB/s
+_bk;t=1789711772465[32mPASSED[0m
+_bk;t=1789711772468kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-128-4096-1-128] b=128, s_q=1, mean_sk=4096, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.bfloat16
+_bk;t=17897117728910.286 ms, 511 TFLOPS, 2237 GB/s
+_bk;t=1789711772892[32mPASSED[0m
+_bk;t=1789711772894kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-128-4096-2-128] b=128, s_q=2, mean_sk=4096, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.bfloat16
+_bk;t=17897117733310.529 ms, 553 TFLOPS, 1278 GB/s
+_bk;t=1789711773332[32mPASSED[0m
+_bk;t=1789711773333kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-128-8192-1-128] b=128, s_q=1, mean_sk=8192, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.bfloat16
+_bk;t=17897117740930.561 ms, 521 TFLOPS, 2218 GB/s
+_bk;t=1789711774094[32mPASSED[0m
+_bk;t=1789711774096kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-128-8192-2-128] b=128, s_q=2, mean_sk=8192, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.bfloat16
+_bk;t=17897117748751.010 ms, 578 TFLOPS, 1266 GB/s
+_bk;t=1789711774876[32mPASSED[0m
+_bk;t=1789711774877kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-128-16384-1-128] b=128, s_q=1, mean_sk=16384, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.bfloat16
+_bk;t=17897117763841.053 ms, 555 TFLOPS, 2328 GB/s
+_bk;t=1789711776385[32mPASSED[0m
+_bk;t=1789711776386kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-False-True-64-512-576-1-128-16384-2-128] b=128, s_q=2, mean_sk=16384, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.bfloat16
+_bk;t=17897117779131.899 ms, 615 TFLOPS, 1310 GB/s
+_bk;t=1789711777913[32mPASSED[0m
+_bk;t=1789711777914kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-16-4096-1-128] b=128, s_q=1, mean_sk=4096, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.bfloat16
+_bk;t=17897117785980.256 ms, 72 TFLOPS, 2392 GB/s
+_bk;t=1789711778599[32mPASSED[0m
+_bk;t=1789711778600kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-16-4096-2-128] b=128, s_q=2, mean_sk=4096, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.bfloat16
+_bk;t=17897117788170.261 ms, 141 TFLOPS, 2359 GB/s
+_bk;t=1789711778818[32mPASSED[0m
+_bk;t=1789711778819kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-16-8192-1-128] b=128, s_q=1, mean_sk=8192, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.bfloat16
+_bk;t=17897117790600.454 ms, 81 TFLOPS, 2684 GB/s
+_bk;t=1789711779061[32mPASSED[0m
+_bk;t=1789711779062kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-16-8192-2-128] b=128, s_q=2, mean_sk=8192, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.bfloat16
+_bk;t=17897117793450.460 ms, 160 TFLOPS, 2659 GB/s
+_bk;t=1789711779345[32mPASSED[0m
+_bk;t=1789711779346kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-16-16384-1-128] b=128, s_q=1, mean_sk=16384, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.bfloat16
+_bk;t=17897117796840.849 ms, 86 TFLOPS, 2867 GB/s
+_bk;t=1789711779684[32mPASSED[0m
+_bk;t=1789711779686kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-16-16384-2-128] b=128, s_q=2, mean_sk=16384, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.bfloat16
+_bk;t=17897117800960.855 ms, 172 TFLOPS, 2851 GB/s
+_bk;t=1789711780097[32mPASSED[0m
+_bk;t=1789711780098kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-32-4096-1-128] b=128, s_q=1, mean_sk=4096, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.bfloat16
+_bk;t=17897117803230.260 ms, 141 TFLOPS, 2367 GB/s
+_bk;t=1789711780324[32mPASSED[0m
+_bk;t=1789711780325kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-32-4096-2-128] b=128, s_q=2, mean_sk=4096, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.bfloat16
+_bk;t=17897117805770.273 ms, 269 TFLOPS, 2287 GB/s
+_bk;t=1789711780578[32mPASSED[0m
+_bk;t=1789711780579kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-32-8192-1-128] b=128, s_q=1, mean_sk=8192, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.bfloat16
+_bk;t=17897117808970.459 ms, 160 TFLOPS, 2665 GB/s
+_bk;t=1789711780898[32mPASSED[0m
+_bk;t=1789711780900kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-32-8192-2-128] b=128, s_q=2, mean_sk=8192, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.bfloat16
+_bk;t=17897117812590.473 ms, 311 TFLOPS, 2607 GB/s
+_bk;t=1789711781260[32mPASSED[0m
+_bk;t=1789711781261kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-32-16384-1-128] b=128, s_q=1, mean_sk=16384, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.bfloat16
+_bk;t=17897117817650.854 ms, 172 TFLOPS, 2854 GB/s
+_bk;t=1789711781765[32mPASSED[0m
+_bk;t=1789711781766kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-32-16384-2-128] b=128, s_q=2, mean_sk=16384, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.bfloat16
+_bk;t=17897117823160.870 ms, 337 TFLOPS, 2810 GB/s
+_bk;t=1789711782316[32mPASSED[0m
+_bk;t=1789711782317kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-64-4096-1-128] b=128, s_q=1, mean_sk=4096, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.bfloat16
+_bk;t=17897117826130.272 ms, 269 TFLOPS, 2294 GB/s
+_bk;t=1789711782614[32mPASSED[0m
+_bk;t=1789711782615kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-64-4096-2-128] b=128, s_q=2, mean_sk=4096, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.bfloat16
+_bk;t=17897117829380.329 ms, 446 TFLOPS, 1951 GB/s
+_bk;t=1789711782938[32mPASSED[0m
+_bk;t=1789711782939kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-64-8192-1-128] b=128, s_q=1, mean_sk=8192, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.bfloat16
+_bk;t=17897117834160.471 ms, 311 TFLOPS, 2614 GB/s
+_bk;t=1789711783416[32mPASSED[0m
+_bk;t=1789711783418kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-64-8192-2-128] b=128, s_q=2, mean_sk=8192, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.bfloat16
+_bk;t=17897117839160.576 ms, 510 TFLOPS, 2171 GB/s
+_bk;t=1789711783916[32mPASSED[0m
+_bk;t=1789711783918kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-64-16384-1-128] b=128, s_q=1, mean_sk=16384, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.bfloat16
+_bk;t=17897117847550.870 ms, 337 TFLOPS, 2811 GB/s
+_bk;t=1789711784756[32mPASSED[0m
+_bk;t=1789711784758kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-64-16384-2-128] b=128, s_q=2, mean_sk=16384, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.bfloat16
+_bk;t=17897117856251.059 ms, 554 TFLOPS, 2327 GB/s
+_bk;t=1789711785626[32mPASSED[0m
+_bk;t=1789711785627kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-128-4096-1-128] b=128, s_q=1, mean_sk=4096, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.bfloat16
+_bk;t=17897117860640.330 ms, 445 TFLOPS, 1947 GB/s
+_bk;t=1789711786065[32mPASSED[0m
+_bk;t=1789711786065kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-128-4096-2-128] b=128, s_q=2, mean_sk=4096, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.bfloat16
+_bk;t=17897117865180.539 ms, 544 TFLOPS, 1258 GB/s
+_bk;t=1789711786518[32mPASSED[0m
+_bk;t=1789711786519kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-128-8192-1-128] b=128, s_q=1, mean_sk=8192, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.bfloat16
+_bk;t=17897117873120.574 ms, 511 TFLOPS, 2177 GB/s
+_bk;t=1789711787313[32mPASSED[0m
+_bk;t=1789711787314kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-128-8192-2-128] b=128, s_q=2, mean_sk=8192, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.bfloat16
+_bk;t=17897117881301.002 ms, 586 TFLOPS, 1282 GB/s
+_bk;t=1789711788131[32mPASSED[0m
+_bk;t=1789711788132kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-128-16384-1-128] b=128, s_q=1, mean_sk=16384, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.bfloat16
+_bk;t=1789711788720[W918 06:09:48.784287080 CUDACachingAllocator.cpp:3933] memory allocation failed with OOM on device 0 while trying to allocate 10768875520 bytes (free: 7835287552, total: 85017624576).
+_bk;t=17897117897761.079 ms, 544 TFLOPS, 2283 GB/s
+_bk;t=1789711789777[32mPASSED[0m
+_bk;t=1789711789778kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype0-True-True-64-512-576-1-128-16384-2-128] b=128, s_q=2, mean_sk=16384, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.bfloat16
+_bk;t=17897117913141.965 ms, 598 TFLOPS, 1272 GB/s
+_bk;t=1789711791314[32mPASSED[0m
+_bk;t=1789711791315kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-16-4096-1-128] b=128, s_q=1, mean_sk=4096, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float16
+_bk;t=17897117915010.232 ms, 79 TFLOPS, 2624 GB/s
+_bk;t=1789711791501[32mPASSED[0m
+_bk;t=1789711791503kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-16-4096-2-128] b=128, s_q=2, mean_sk=4096, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float16
+_bk;t=17897117917070.233 ms, 157 TFLOPS, 2634 GB/s
+_bk;t=1789711791707[32mPASSED[0m
+_bk;t=1789711791709kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-16-8192-1-128] b=128, s_q=1, mean_sk=8192, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float16
+_bk;t=17897117919370.431 ms, 85 TFLOPS, 2814 GB/s
+_bk;t=1789711791937[32mPASSED[0m
+_bk;t=1789711791939kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-16-8192-2-128] b=128, s_q=2, mean_sk=8192, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float16
+_bk;t=17897117922070.431 ms, 169 TFLOPS, 2822 GB/s
+_bk;t=1789711792208[32mPASSED[0m
+_bk;t=1789711792209kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-16-16384-1-128] b=128, s_q=1, mean_sk=16384, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float16
+_bk;t=17897117925400.826 ms, 88 TFLOPS, 2929 GB/s
+_bk;t=1789711792540[32mPASSED[0m
+_bk;t=1789711792542kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-16-16384-2-128] b=128, s_q=2, mean_sk=16384, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float16
+_bk;t=17897117929630.833 ms, 175 TFLOPS, 2912 GB/s
+_bk;t=1789711792964[32mPASSED[0m
+_bk;t=1789711792966kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-32-4096-1-128] b=128, s_q=1, mean_sk=4096, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float16
+_bk;t=17897117931910.233 ms, 157 TFLOPS, 2633 GB/s
+_bk;t=1789711793192[32mPASSED[0m
+_bk;t=1789711793194kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-32-4096-2-128] b=128, s_q=2, mean_sk=4096, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float16
+_bk;t=17897117934440.235 ms, 311 TFLOPS, 2651 GB/s
+_bk;t=1789711793444[32mPASSED[0m
+_bk;t=1789711793446kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-32-8192-1-128] b=128, s_q=1, mean_sk=8192, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float16
+_bk;t=17897117937610.431 ms, 169 TFLOPS, 2823 GB/s
+_bk;t=1789711793762[32mPASSED[0m
+_bk;t=1789711793764kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-32-8192-2-128] b=128, s_q=2, mean_sk=8192, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float16
+_bk;t=17897117941270.434 ms, 337 TFLOPS, 2826 GB/s
+_bk;t=1789711794128[32mPASSED[0m
+_bk;t=1789711794130kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-32-16384-1-128] b=128, s_q=1, mean_sk=16384, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float16
+_bk;t=17897117946390.833 ms, 175 TFLOPS, 2912 GB/s
+_bk;t=1789711794640[32mPASSED[0m
+_bk;t=1789711794642kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-32-16384-2-128] b=128, s_q=2, mean_sk=16384, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float16
+_bk;t=17897117951930.856 ms, 341 TFLOPS, 2844 GB/s
+_bk;t=1789711795193[32mPASSED[0m
+_bk;t=1789711795195kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-64-4096-1-128] b=128, s_q=1, mean_sk=4096, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float16
+_bk;t=17897117954910.235 ms, 311 TFLOPS, 2648 GB/s
+_bk;t=1789711795492[32mPASSED[0m
+_bk;t=1789711795494kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-64-4096-2-128] b=128, s_q=2, mean_sk=4096, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float16
+_bk;t=17897117958250.287 ms, 508 TFLOPS, 2227 GB/s
+_bk;t=1789711795825[32mPASSED[0m
+_bk;t=1789711795827kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-64-8192-1-128] b=128, s_q=1, mean_sk=8192, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float16
+_bk;t=17897117962900.434 ms, 336 TFLOPS, 2823 GB/s
+_bk;t=1789711796291[32mPASSED[0m
+_bk;t=1789711796291kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-64-8192-2-128] b=128, s_q=2, mean_sk=8192, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float16
+_bk;t=17897117967630.573 ms, 510 TFLOPS, 2172 GB/s
+_bk;t=1789711796764[32mPASSED[0m
+_bk;t=1789711796765kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-64-16384-1-128] b=128, s_q=1, mean_sk=16384, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float16
+_bk;t=17897117976070.853 ms, 342 TFLOPS, 2852 GB/s
+_bk;t=1789711797608[32mPASSED[0m
+_bk;t=1789711797610kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-64-16384-2-128] b=128, s_q=2, mean_sk=16384, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float16
+_bk;t=17897117984831.103 ms, 530 TFLOPS, 2223 GB/s
+_bk;t=1789711798484[32mPASSED[0m
+_bk;t=1789711798485kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-128-4096-1-128] b=128, s_q=1, mean_sk=4096, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float16
+_bk;t=17897117989090.287 ms, 508 TFLOPS, 2226 GB/s
+_bk;t=1789711798909[32mPASSED[0m
+_bk;t=1789711798910kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-128-4096-2-128] b=128, s_q=2, mean_sk=4096, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float16
+_bk;t=17897117993500.544 ms, 537 TFLOPS, 1242 GB/s
+_bk;t=1789711799350[32mPASSED[0m
+_bk;t=1789711799351kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-128-8192-1-128] b=128, s_q=1, mean_sk=8192, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float16
+_bk;t=17897118001130.566 ms, 516 TFLOPS, 2196 GB/s
+_bk;t=1789711800114[32mPASSED[0m
+_bk;t=1789711800116kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-128-8192-2-128] b=128, s_q=2, mean_sk=8192, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float16
+_bk;t=17897118009001.056 ms, 553 TFLOPS, 1212 GB/s
+_bk;t=1789711800900[32mPASSED[0m
+_bk;t=1789711800901kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-128-16384-1-128] b=128, s_q=1, mean_sk=16384, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float16
+_bk;t=17897118024091.074 ms, 544 TFLOPS, 2282 GB/s
+_bk;t=1789711802410[32mPASSED[0m
+_bk;t=1789711802411kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-False-True-64-512-576-1-128-16384-2-128] b=128, s_q=2, mean_sk=16384, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float16
+_bk;t=17897118039432.034 ms, 574 TFLOPS, 1223 GB/s
+_bk;t=1789711803943[32mPASSED[0m
+_bk;t=1789711803945kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-16-4096-1-128] b=128, s_q=1, mean_sk=4096, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float16
+_bk;t=17897118041400.257 ms, 71 TFLOPS, 2378 GB/s
+_bk;t=1789711804140[32mPASSED[0m
+_bk;t=1789711804141kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-16-4096-2-128] b=128, s_q=2, mean_sk=4096, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float16
+_bk;t=17897118043550.262 ms, 140 TFLOPS, 2354 GB/s
+_bk;t=1789711804356[32mPASSED[0m
+_bk;t=1789711804357kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-16-8192-1-128] b=128, s_q=1, mean_sk=8192, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float16
+_bk;t=17897118045970.456 ms, 81 TFLOPS, 2675 GB/s
+_bk;t=1789711804597[32mPASSED[0m
+_bk;t=1789711804598kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-16-8192-2-128] b=128, s_q=2, mean_sk=8192, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float16
+_bk;t=17897118048800.461 ms, 159 TFLOPS, 2653 GB/s
+_bk;t=1789711804881[32mPASSED[0m
+_bk;t=1789711804882kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-16-16384-1-128] b=128, s_q=1, mean_sk=16384, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float16
+_bk;t=17897118052200.847 ms, 87 TFLOPS, 2871 GB/s
+_bk;t=1789711805220[32mPASSED[0m
+_bk;t=1789711805222kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-16-16384-2-128] b=128, s_q=2, mean_sk=16384, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float16
+_bk;t=17897118056330.853 ms, 172 TFLOPS, 2856 GB/s
+_bk;t=1789711805633[32mPASSED[0m
+_bk;t=1789711805635kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-32-4096-1-128] b=128, s_q=1, mean_sk=4096, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float16
+_bk;t=17897118058600.261 ms, 141 TFLOPS, 2363 GB/s
+_bk;t=1789711805861[32mPASSED[0m
+_bk;t=1789711805862kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-32-4096-2-128] b=128, s_q=2, mean_sk=4096, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float16
+_bk;t=17897118061140.273 ms, 269 TFLOPS, 2287 GB/s
+_bk;t=1789711806114[32mPASSED[0m
+_bk;t=1789711806115kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-32-8192-1-128] b=128, s_q=1, mean_sk=8192, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float16
+_bk;t=17897118064340.460 ms, 160 TFLOPS, 2661 GB/s
+_bk;t=1789711806435[32mPASSED[0m
+_bk;t=1789711806436kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-32-8192-2-128] b=128, s_q=2, mean_sk=8192, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float16
+_bk;t=17897118067940.473 ms, 310 TFLOPS, 2603 GB/s
+_bk;t=1789711806795[32mPASSED[0m
+_bk;t=1789711806796kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-32-16384-1-128] b=128, s_q=1, mean_sk=16384, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float16
+_bk;t=17897118073000.855 ms, 172 TFLOPS, 2852 GB/s
+_bk;t=1789711807300[32mPASSED[0m
+_bk;t=1789711807302kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-32-16384-2-128] b=128, s_q=2, mean_sk=16384, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float16
+_bk;t=17897118078510.873 ms, 336 TFLOPS, 2803 GB/s
+_bk;t=1789711807851[32mPASSED[0m
+_bk;t=1789711807853kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-64-4096-1-128] b=128, s_q=1, mean_sk=4096, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float16
+_bk;t=17897118081480.272 ms, 270 TFLOPS, 2297 GB/s
+_bk;t=1789711808149[32mPASSED[0m
+_bk;t=1789711808150kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-64-4096-2-128] b=128, s_q=2, mean_sk=4096, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float16
+_bk;t=17897118084720.334 ms, 439 TFLOPS, 1924 GB/s
+_bk;t=1789711808472[32mPASSED[0m
+_bk;t=1789711808473kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-64-8192-1-128] b=128, s_q=1, mean_sk=8192, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float16
+_bk;t=17897118089510.472 ms, 311 TFLOPS, 2611 GB/s
+_bk;t=1789711808951[32mPASSED[0m
+_bk;t=1789711808953kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-64-8192-2-128] b=128, s_q=2, mean_sk=8192, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float16
+_bk;t=17897118094550.595 ms, 494 TFLOPS, 2101 GB/s
+_bk;t=1789711809455[32mPASSED[0m
+_bk;t=1789711809457kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-64-16384-1-128] b=128, s_q=1, mean_sk=16384, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float16
+_bk;t=17897118102930.874 ms, 336 TFLOPS, 2800 GB/s
+_bk;t=1789711810293[32mPASSED[0m
+_bk;t=1789711810296kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-64-16384-2-128] b=128, s_q=2, mean_sk=16384, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float16
+_bk;t=17897118111651.085 ms, 541 TFLOPS, 2272 GB/s
+_bk;t=1789711811166[32mPASSED[0m
+_bk;t=1789711811167kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-128-4096-1-128] b=128, s_q=1, mean_sk=4096, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float16
+_bk;t=17897118116010.332 ms, 442 TFLOPS, 1937 GB/s
+_bk;t=1789711811602[32mPASSED[0m
+_bk;t=1789711811603kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-128-4096-2-128] b=128, s_q=2, mean_sk=4096, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float16
+_bk;t=17897118120570.565 ms, 520 TFLOPS, 1201 GB/s
+_bk;t=1789711812058[32mPASSED[0m
+_bk;t=1789711812059kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-128-8192-1-128] b=128, s_q=1, mean_sk=8192, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float16
+_bk;t=17897118128520.590 ms, 497 TFLOPS, 2117 GB/s
+_bk;t=1789711812853[32mPASSED[0m
+_bk;t=1789711812854kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-128-8192-2-128] b=128, s_q=2, mean_sk=8192, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float16
+_bk;t=17897118136731.048 ms, 560 TFLOPS, 1226 GB/s
+_bk;t=1789711813674[32mPASSED[0m
+_bk;t=1789711813676kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-128-16384-1-128] b=128, s_q=1, mean_sk=16384, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float16
+_bk;t=17897118151851.096 ms, 536 TFLOPS, 2249 GB/s
+_bk;t=1789711815186[32mPASSED[0m
+_bk;t=1789711815187kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype1-True-True-64-512-576-1-128-16384-2-128] b=128, s_q=2, mean_sk=16384, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float16
+_bk;t=17897118167272.021 ms, 581 TFLOPS, 1237 GB/s
+_bk;t=1789711816729[32mPASSED[0m
+_bk;t=1789711816731kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-16-4096-1-128] b=128, s_q=1, mean_sk=4096, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118169570.128 ms, 143 TFLOPS, 2385 GB/s
+_bk;t=1789711816958[32mPASSED[0m
+_bk;t=1789711816959kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-16-4096-2-128] b=128, s_q=2, mean_sk=4096, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118171870.130 ms, 282 TFLOPS, 2381 GB/s
+_bk;t=1789711817187[32mPASSED[0m
+_bk;t=1789711817189kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-16-8192-1-128] b=128, s_q=1, mean_sk=8192, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118174320.229 ms, 160 TFLOPS, 2654 GB/s
+_bk;t=1789711817432[32mPASSED[0m
+_bk;t=1789711817433kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-16-8192-2-128] b=128, s_q=2, mean_sk=8192, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118177120.231 ms, 316 TFLOPS, 2638 GB/s
+_bk;t=1789711817712[32mPASSED[0m
+_bk;t=1789711817715kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-16-16384-1-128] b=128, s_q=1, mean_sk=16384, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118180650.443 ms, 165 TFLOPS, 2735 GB/s
+_bk;t=1789711818065[32mPASSED[0m
+_bk;t=1789711818066kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-16-16384-2-128] b=128, s_q=2, mean_sk=16384, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118184970.456 ms, 320 TFLOPS, 2662 GB/s
+_bk;t=1789711818498[32mPASSED[0m
+_bk;t=1789711818499kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-32-4096-1-128] b=128, s_q=1, mean_sk=4096, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118187200.130 ms, 282 TFLOPS, 2379 GB/s
+_bk;t=1789711818721[32mPASSED[0m
+_bk;t=1789711818722kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-32-4096-2-128] b=128, s_q=2, mean_sk=4096, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118189640.133 ms, 548 TFLOPS, 2363 GB/s
+_bk;t=1789711818964[32mPASSED[0m
+_bk;t=1789711818966kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-32-8192-1-128] b=128, s_q=1, mean_sk=8192, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118192790.231 ms, 315 TFLOPS, 2638 GB/s
+_bk;t=1789711819280[32mPASSED[0m
+_bk;t=1789711819281kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-32-8192-2-128] b=128, s_q=2, mean_sk=8192, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118196440.235 ms, 621 TFLOPS, 2624 GB/s
+_bk;t=1789711819644[32mPASSED[0m
+_bk;t=1789711819646kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-32-16384-1-128] b=128, s_q=1, mean_sk=16384, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118201650.453 ms, 323 TFLOPS, 2683 GB/s
+_bk;t=1789711820165[32mPASSED[0m
+_bk;t=1789711820167kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-32-16384-2-128] b=128, s_q=2, mean_sk=16384, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118207280.475 ms, 615 TFLOPS, 2572 GB/s
+_bk;t=1789711820729[32mPASSED[0m
+_bk;t=1789711820731kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-64-4096-1-128] b=128, s_q=1, mean_sk=4096, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118210260.134 ms, 545 TFLOPS, 2353 GB/s
+_bk;t=1789711821027[32mPASSED[0m
+_bk;t=1789711821028kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-64-4096-2-128] b=128, s_q=2, mean_sk=4096, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118213560.229 ms, 638 TFLOPS, 1435 GB/s
+_bk;t=1789711821357[32mPASSED[0m
+_bk;t=1789711821358kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-64-8192-1-128] b=128, s_q=1, mean_sk=8192, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118218340.237 ms, 617 TFLOPS, 2608 GB/s
+_bk;t=1789711821835[32mPASSED[0m
+_bk;t=1789711821837kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-64-8192-2-128] b=128, s_q=2, mean_sk=8192, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118223260.435 ms, 671 TFLOPS, 1447 GB/s
+_bk;t=1789711822327[32mPASSED[0m
+_bk;t=1789711822329kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-64-16384-1-128] b=128, s_q=1, mean_sk=16384, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118231920.474 ms, 616 TFLOPS, 2576 GB/s
+_bk;t=1789711823192[32mPASSED[0m
+_bk;t=1789711823194kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-64-16384-2-128] b=128, s_q=2, mean_sk=16384, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118240890.829 ms, 705 TFLOPS, 1489 GB/s
+_bk;t=1789711824090[32mPASSED[0m
+_bk;t=1789711824092kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-128-4096-1-128] b=128, s_q=1, mean_sk=4096, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118245330.228 ms, 639 TFLOPS, 1437 GB/s
+_bk;t=1789711824534[32mPASSED[0m
+_bk;t=1789711824535kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-128-4096-2-128] b=128, s_q=2, mean_sk=4096, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118249890.436 ms, 670 TFLOPS, 813 GB/s
+_bk;t=1789711824990[32mPASSED[0m
+_bk;t=1789711824992kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-128-8192-1-128] b=128, s_q=1, mean_sk=8192, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118257740.433 ms, 674 TFLOPS, 1454 GB/s
+_bk;t=1789711825775[32mPASSED[0m
+_bk;t=1789711825777kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-128-8192-2-128] b=128, s_q=2, mean_sk=8192, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118265740.814 ms, 718 TFLOPS, 807 GB/s
+_bk;t=1789711826575[32mPASSED[0m
+_bk;t=1789711826577kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-128-16384-1-128] b=128, s_q=1, mean_sk=16384, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118281160.828 ms, 705 TFLOPS, 1490 GB/s
+_bk;t=1789711828117[32mPASSED[0m
+_bk;t=1789711828118kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-False-True-64-512-576-1-128-16384-2-128] b=128, s_q=2, mean_sk=16384, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=False, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118296771.600 ms, 730 TFLOPS, 788 GB/s
+_bk;t=1789711829678[32mPASSED[0m
+_bk;t=1789711829679kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-16-4096-1-128] b=128, s_q=1, mean_sk=4096, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118299190.141 ms, 130 TFLOPS, 2175 GB/s
+_bk;t=1789711829919[32mPASSED[0m
+_bk;t=1789711829921kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-16-4096-2-128] b=128, s_q=2, mean_sk=4096, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118301680.146 ms, 251 TFLOPS, 2120 GB/s
+_bk;t=1789711830169[32mPASSED[0m
+_bk;t=1789711830170kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-16-8192-1-128] b=128, s_q=1, mean_sk=8192, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118304540.241 ms, 152 TFLOPS, 2530 GB/s
+_bk;t=1789711830455[32mPASSED[0m
+_bk;t=1789711830457kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-16-8192-2-128] b=128, s_q=2, mean_sk=8192, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118307810.249 ms, 295 TFLOPS, 2463 GB/s
+_bk;t=1789711830782[32mPASSED[0m
+_bk;t=1789711830784kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-16-16384-1-128] b=128, s_q=1, mean_sk=16384, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118311840.446 ms, 165 TFLOPS, 2732 GB/s
+_bk;t=1789711831185[32mPASSED[0m
+_bk;t=1789711831187kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-16-16384-2-128] b=128, s_q=2, mean_sk=16384, h_q=16, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118316570.454 ms, 323 TFLOPS, 2690 GB/s
+_bk;t=1789711831657[32mPASSED[0m
+_bk;t=1789711831659kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-32-4096-1-128] b=128, s_q=1, mean_sk=4096, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118319130.147 ms, 250 TFLOPS, 2111 GB/s
+_bk;t=1789711831913[32mPASSED[0m
+_bk;t=1789711831915kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-32-4096-2-128] b=128, s_q=2, mean_sk=4096, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118321820.158 ms, 465 TFLOPS, 2007 GB/s
+_bk;t=1789711832183[32mPASSED[0m
+_bk;t=1789711832185kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-32-8192-1-128] b=128, s_q=1, mean_sk=8192, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118325450.249 ms, 295 TFLOPS, 2464 GB/s
+_bk;t=1789711832546[32mPASSED[0m
+_bk;t=1789711832547kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-32-8192-2-128] b=128, s_q=2, mean_sk=8192, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118329420.264 ms, 556 TFLOPS, 2351 GB/s
+_bk;t=1789711832943[32mPASSED[0m
+_bk;t=1789711832945kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-32-16384-1-128] b=128, s_q=1, mean_sk=16384, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118335120.460 ms, 319 TFLOPS, 2655 GB/s
+_bk;t=1789711833512[32mPASSED[0m
+_bk;t=1789711833514kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-32-16384-2-128] b=128, s_q=2, mean_sk=16384, h_q=32, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118341260.473 ms, 621 TFLOPS, 2596 GB/s
+_bk;t=1789711834127[32mPASSED[0m
+_bk;t=1789711834129kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-64-4096-1-128] b=128, s_q=1, mean_sk=4096, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118344520.158 ms, 463 TFLOPS, 1998 GB/s
+_bk;t=1789711834453[32mPASSED[0m
+_bk;t=1789711834454kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-64-4096-2-128] b=128, s_q=2, mean_sk=4096, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118348030.242 ms, 607 TFLOPS, 1364 GB/s
+_bk;t=1789711834804[32mPASSED[0m
+_bk;t=1789711834806kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-64-8192-1-128] b=128, s_q=1, mean_sk=8192, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118353160.264 ms, 556 TFLOPS, 2348 GB/s
+_bk;t=1789711835317[32mPASSED[0m
+_bk;t=1789711835319kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-64-8192-2-128] b=128, s_q=2, mean_sk=8192, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118358500.432 ms, 680 TFLOPS, 1467 GB/s
+_bk;t=1789711835851[32mPASSED[0m
+_bk;t=1789711835853kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-64-16384-1-128] b=128, s_q=1, mean_sk=16384, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118367480.475 ms, 618 TFLOPS, 2583 GB/s
+_bk;t=1789711836749[32mPASSED[0m
+_bk;t=1789711836751kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-64-16384-2-128] b=128, s_q=2, mean_sk=16384, h_q=64, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118376790.843 ms, 697 TFLOPS, 1472 GB/s
+_bk;t=1789711837680[32mPASSED[0m
+_bk;t=1789711837682kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-128-4096-1-128] b=128, s_q=1, mean_sk=4096, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118381330.242 ms, 606 TFLOPS, 1361 GB/s
+_bk;t=1789711838134[32mPASSED[0m
+_bk;t=1789711838136kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-128-4096-2-128] b=128, s_q=2, mean_sk=4096, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118386140.440 ms, 666 TFLOPS, 808 GB/s
+_bk;t=1789711838615[32mPASSED[0m
+_bk;t=1789711838617kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-128-8192-1-128] b=128, s_q=1, mean_sk=8192, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118394490.434 ms, 676 TFLOPS, 1458 GB/s
+_bk;t=1789711839449[32mPASSED[0m
+_bk;t=1789711839451kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-128-8192-2-128] b=128, s_q=2, mean_sk=8192, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118403030.829 ms, 709 TFLOPS, 796 GB/s
+_bk;t=1789711840304[32mPASSED[0m
+_bk;t=1789711840306kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-128-16384-1-128] b=128, s_q=1, mean_sk=16384, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118418740.851 ms, 690 TFLOPS, 1457 GB/s
+_bk;t=1789711841875[32mPASSED[0m
+_bk;t=1789711841877kernels/attention/test_flashmla.py::test_flash_mla[torch_dtype2-True-True-64-512-576-1-128-16384-2-128] b=128, s_q=2, mean_sk=16384, h_q=128, h_kv=1, d=576, dv=512, causal=True, varlen=True, torch_dtype=torch.float8_e4m3fn
+_bk;t=17897118434671.620 ms, 725 TFLOPS, 782 GB/s
+_bk;t=1789711843467[32mPASSED[0m
+_bk;t=1789711843472
+_bk;t=1789711843472[33m======================================================================= warnings summary =======================================================================[0m
+_bk;t=1789711843472<frozen importlib._bootstrap>:488
+_bk;t=1789711843472  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+_bk;t=1789711843472
+_bk;t=1789711843472<frozen importlib._bootstrap>:488
+_bk;t=1789711843472  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+_bk;t=1789711843472
+_bk;t=1789711843475../../usr/local/lib/python3.12/dist-packages/torch/jit/_script.py:365: 14 warnings
+_bk;t=1789711843475  /usr/local/lib/python3.12/dist-packages/torch/jit/_script.py:365: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+_bk;t=1789711843475    warnings.warn(
+_bk;t=1789711843475
+_bk;t=1789711843475-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+_bk;t=1789711843476[33m========================================================= [32m144 passed[0m, [33m[1m16 warnings[0m[33m in 79.95s (0:01:19)[0m[33m ==========================================================[0m
+_bk;t=1789711847036+++ :test_tube: Command (2/4): pytest -v -s kernels/attention/test_flashmla_sparse.py
+_bk;t=1789711847108vLLM CI OTel: non-root GPU sampler unavailable; sampling disabled
+_bk;t=1789711856733[1m===================================================================== test session starts ======================================================================[0m
+_bk;t=1789711856733platform linux -- Python 3.12.3, pytest-9.1.0, pluggy-1.5.0 -- /usr/bin/python3
+_bk;t=1789711856738cachedir: .pytest_cache
+_bk;t=1789711856738hypothesis profile 'ci' -> database=None, deadline=None, print_blob=True, derandomize=True, suppress_health_check=[HealthCheck.too_slow]
+_bk;t=1789711856738rootdir: /vllm-workspace
+_bk;t=1789711856738configfile: pyproject.toml
+_bk;t=1789711856738plugins: schemathesis-4.21.6, timeout-2.3.1, hypothesis-6.131.0, buildkite-test-collector-0.1.9, anyio-4.14.1, cov-6.3.0, rerunfailures-14.0, shard-0.1.2, forked-1.6.0, mock-3.14.0, asyncio-1.4.0
+_bk;t=1789711856738asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+_bk;t=1789711856738[1mcollecting ... [0m[1mcollected 10 items                                                                                                                                             [0m
+_bk;t=1789711856788Running 10 items in this shard: tests/kernels/attention/test_flashmla_sparse.py::test_deepseek_v4_c128a_adaptive_width_has_capture_stable_stride[False], tests/kernels/attention/test_flashmla_sparse.py::test_deepseek_v4_c128a_adaptive_width_has_capture_stable_stride[True], tests/kernels/attention/test_flashmla_sparse.py::test_sparse_flashmla_metadata_smoke, tests/kernels/attention/test_flashmla_sparse.py::test_sparse_flashmla_decode_smoke, tests/kernels/attention/test_flashmla_sparse.py::test_sparse_flashmla_prefill_smoke[64], tests/kernels/attention/test_flashmla_sparse.py::test_sparse_flashmla_prefill_smoke[128], tests/kernels/attention/test_flashmla_sparse.py::test_deepseek_v4_prefill_chunk_planning_expands_for_short_sequences, tests/kernels/attention/test_flashmla_sparse.py::test_flashinfer_sparse_indices_cache, tests/kernels/attention/test_flashmla_sparse.py::test_flashinfer_sparse_index_preserves_logical_window, tests/kernels/attention/test_flashmla_sparse.py::test_flashinfer_mixed_sparse_indices_separates_window_and_padded_width
+_bk;t=1789711856789
+_bk;t=1789711856789kernels/attention/test_flashmla_sparse.py::test_deepseek_v4_c128a_adaptive_width_has_capture_stable_stride[False] _bk;t=1789711860090[32mPASSED[0m
+_bk;t=1789711860431kernels/attention/test_flashmla_sparse.py::test_deepseek_v4_c128a_adaptive_width_has_capture_stable_stride[True] [32mPASSED[0m
+_bk;t=1789711860699kernels/attention/test_flashmla_sparse.py::test_sparse_flashmla_metadata_smoke [32mPASSED[0m
+_bk;t=1789711860962kernels/attention/test_flashmla_sparse.py::test_sparse_flashmla_decode_smoke [32mPASSED[0m
+_bk;t=1789711861256kernels/attention/test_flashmla_sparse.py::test_sparse_flashmla_prefill_smoke[64] [32mPASSED[0m
+_bk;t=1789711861587kernels/attention/test_flashmla_sparse.py::test_sparse_flashmla_prefill_smoke[128] [32mPASSED[0m
+_bk;t=1789711861899kernels/attention/test_flashmla_sparse.py::test_deepseek_v4_prefill_chunk_planning_expands_for_short_sequences [32mPASSED[0m
+_bk;t=1789711862212kernels/attention/test_flashmla_sparse.py::test_flashinfer_sparse_indices_cache [32mPASSED[0m
+_bk;t=1789711862510kernels/attention/test_flashmla_sparse.py::test_flashinfer_sparse_index_preserves_logical_window [32mPASSED[0m
+_bk;t=1789711862845kernels/attention/test_flashmla_sparse.py::test_flashinfer_mixed_sparse_indices_separates_window_and_padded_width [32mPASSED[0m
+_bk;t=1789711863287
+_bk;t=1789711863287[33m======================================================================= warnings summary =======================================================================[0m
+_bk;t=1789711863287<frozen importlib._bootstrap>:488
+_bk;t=1789711863287  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+_bk;t=1789711863287
+_bk;t=1789711863287<frozen importlib._bootstrap>:488
+_bk;t=1789711863288  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+_bk;t=1789711863288
+_bk;t=1789711863289../../usr/local/lib/python3.12/dist-packages/torch/jit/_script.py:365: 14 warnings
+_bk;t=1789711863289  /usr/local/lib/python3.12/dist-packages/torch/jit/_script.py:365: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+_bk;t=1789711863289    warnings.warn(
+_bk;t=1789711863289
+_bk;t=1789711863289-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+_bk;t=1789711863289[33m=============================================================== [32m10 passed[0m, [33m[1m16 warnings[0m[33m in 6.56s[0m[33m ================================================================[0m
+_bk;t=1789711865792+++ :test_tube: Command (3/4): pytest -v -s kernels/attention/test_flashinfer_mla_decode.py
+_bk;t=1789711865865vLLM CI OTel: non-root GPU sampler unavailable; sampling disabled
+_bk;t=1789711875054[1m===================================================================== test session starts ======================================================================[0m
+_bk;t=1789711875054platform linux -- Python 3.12.3, pytest-9.1.0, pluggy-1.5.0 -- /usr/bin/python3
+_bk;t=1789711875059cachedir: .pytest_cache
+_bk;t=1789711875059hypothesis profile 'ci' -> database=None, deadline=None, print_blob=True, derandomize=True, suppress_health_check=[HealthCheck.too_slow]
+_bk;t=1789711875059rootdir: /vllm-workspace
+_bk;t=1789711875059configfile: pyproject.toml
+_bk;t=1789711875059plugins: schemathesis-4.21.6, timeout-2.3.1, hypothesis-6.131.0, buildkite-test-collector-0.1.9, anyio-4.14.1, cov-6.3.0, rerunfailures-14.0, shard-0.1.2, forked-1.6.0, mock-3.14.0, asyncio-1.4.0
+_bk;t=1789711875059asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+_bk;t=1789711875059[1mcollecting ... [0m_bk;t=1789711878544[33mWARNING[0m [90m09-18 06:11:18[0m [90m[interface.py:1122][0m Current platform cuda does not have '_schemathesis_metadata' attribute.
+_bk;t=1789711878546[1mcollecting 11 items                                                                                                                                            [0m[1mcollected 11 items                                                                                                                                             [0m
+_bk;t=1789711878546Running 11 items in this shard: tests/kernels/attention/test_flashinfer_mla_decode.py::test_flashinfer_mla_decode[32-1-dtype0], tests/kernels/attention/test_flashinfer_mla_decode.py::test_flashinfer_mla_decode[32-2-dtype0], tests/kernels/attention/test_flashinfer_mla_decode.py::test_flashinfer_mla_decode[32-4-dtype0], tests/kernels/attention/test_flashinfer_mla_decode.py::test_flashinfer_mla_decode[32-16-dtype0], tests/kernels/attention/test_flashinfer_mla_decode.py::test_flashinfer_mla_decode[64-1-dtype0], tests/kernels/attention/test_flashinfer_mla_decode.py::test_flashinfer_mla_decode[64-2-dtype0], tests/kernels/attention/test_flashinfer_mla_decode.py::test_flashinfer_mla_decode[64-4-dtype0], tests/kernels/attention/test_flashinfer_mla_decode.py::test_flashinfer_mla_decode[64-16-dtype0], tests/kernels/attention/test_flashinfer_mla_decode.py::test_flashinfer_trtllm_sparse_mla_decode_without_rope, tests/kernels/attention/test_flashinfer_mla_decode.py::test_flashinfer_sm90_fp8_mla_decode_without_rope, tests/kernels/attention/test_flashinfer_mla_decode.py::test_flashinfer_mla_decode_workspace_supports_autotune
+_bk;t=1789711878547
+_bk;t=1789711878547kernels/attention/test_flashinfer_mla_decode.py::test_flashinfer_mla_decode[32-1-dtype0] [33mSKIPPED[0m (This test requires an SM10x GPU.)
+_bk;t=1789711878549kernels/attention/test_flashinfer_mla_decode.py::test_flashinfer_mla_decode[32-2-dtype0] [33mSKIPPED[0m (This test requires an SM10x GPU.)
+_bk;t=1789711878550kernels/attention/test_flashinfer_mla_decode.py::test_flashinfer_mla_decode[32-4-dtype0] [33mSKIPPED[0m (This test requires an SM10x GPU.)
+_bk;t=1789711878551kernels/attention/test_flashinfer_mla_decode.py::test_flashinfer_mla_decode[32-16-dtype0] [33mSKIPPED[0m (This test requires an SM10x GPU.)
+_bk;t=1789711878552kernels/attention/test_flashinfer_mla_decode.py::test_flashinfer_mla_decode[64-1-dtype0] [33mSKIPPED[0m (This test requires an SM10x GPU.)
+_bk;t=1789711878553kernels/attention/test_flashinfer_mla_decode.py::test_flashinfer_mla_decode[64-2-dtype0] [33mSKIPPED[0m (This test requires an SM10x GPU.)
+_bk;t=1789711878554kernels/attention/test_flashinfer_mla_decode.py::test_flashinfer_mla_decode[64-4-dtype0] [33mSKIPPED[0m (This test requires an SM10x GPU.)
+_bk;t=1789711878555kernels/attention/test_flashinfer_mla_decode.py::test_flashinfer_mla_decode[64-16-dtype0] [33mSKIPPED[0m (This test requires an SM10x GPU.)
+_bk;t=1789711878558kernels/attention/test_flashinfer_mla_decode.py::test_flashinfer_trtllm_sparse_mla_decode_without_rope [33mSKIPPED[0m (This test requires an SM10x GPU.)
+_bk;t=1789711878559kernels/attention/test_flashinfer_mla_decode.py::test_flashinfer_sm90_fp8_mla_decode_without_rope _bk;t=1789711908616[32mPASSED[0m
+_bk;t=1789711908965kernels/attention/test_flashinfer_mla_decode.py::test_flashinfer_mla_decode_workspace_supports_autotune [33mSKIPPED[0m (This test requires an SM10x GPU.)
+_bk;t=1789711908967
+_bk;t=1789711908967[33m======================================================================= warnings summary =======================================================================[0m
+_bk;t=1789711908967<frozen importlib._bootstrap>:488
+_bk;t=1789711908967  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+_bk;t=1789711908967
+_bk;t=1789711908967<frozen importlib._bootstrap>:488
+_bk;t=1789711908967  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+_bk;t=1789711908967
+_bk;t=1789711908969../../usr/local/lib/python3.12/dist-packages/torch/jit/_script.py:365: 14 warnings
+_bk;t=1789711908969  /usr/local/lib/python3.12/dist-packages/torch/jit/_script.py:365: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+_bk;t=1789711908969    warnings.warn(
+_bk;t=1789711908969
+_bk;t=1789711908969../../usr/local/lib/python3.12/dist-packages/flashinfer/cute_dsl/availability.py:135
+_bk;t=1789711908969  /usr/local/lib/python3.12/dist-packages/flashinfer/cute_dsl/availability.py:135: DeprecationWarning: Arch from arch.py is deprecated. Use Arch from enums.py instead.
+_bk;t=1789711908969    from cutlass.base_dsl.arch import Arch
+_bk;t=1789711908969
+_bk;t=1789711908969-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+_bk;t=1789711908969[33m========================================================= [32m1 passed[0m, [33m[1m10 skipped[0m, [33m[1m17 warnings[0m[33m in 33.92s[0m[33m ==========================================================[0m
+_bk;t=1789711911464+++ :test_tube: Command (4/4): pytest -v -s kernels/attention/test_mla_cross_layer_kernel_equivalence.py
+_bk;t=1789711911536vLLM CI OTel: non-root GPU sampler unavailable; sampling disabled
+_bk;t=1789711922033[1m===================================================================== test session starts ======================================================================[0m
+_bk;t=1789711922033platform linux -- Python 3.12.3, pytest-9.1.0, pluggy-1.5.0 -- /usr/bin/python3
+_bk;t=1789711922042cachedir: .pytest_cache
+_bk;t=1789711922042hypothesis profile 'ci' -> database=None, deadline=None, print_blob=True, derandomize=True, suppress_health_check=[HealthCheck.too_slow]
+_bk;t=1789711922042rootdir: /vllm-workspace
+_bk;t=1789711922042configfile: pyproject.toml
+_bk;t=1789711922042plugins: schemathesis-4.21.6, timeout-2.3.1, hypothesis-6.131.0, buildkite-test-collector-0.1.9, anyio-4.14.1, cov-6.3.0, rerunfailures-14.0, shard-0.1.2, forked-1.6.0, mock-3.14.0, asyncio-1.4.0
+_bk;t=1789711922042asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+_bk;t=1789711922043[1mcollecting ... [0m[1mcollected 10 items                                                                                                                                             [0m
+_bk;t=1789711922109Running 10 items in this shard: tests/kernels/attention/test_mla_cross_layer_kernel_equivalence.py::test_concat_and_cache_mla_into_unified_slot_view, tests/kernels/attention/test_mla_cross_layer_kernel_equivalence.py::test_flashmla_dense_decode_unified_slot_view, tests/kernels/attention/test_mla_cross_layer_kernel_equivalence.py::test_flashinfer_mla_dense_decode_unified_slot_view, tests/kernels/attention/test_mla_cross_layer_kernel_equivalence.py::test_flashmla_fp8_sparse_decode_unified_slot_view[1], tests/kernels/attention/test_mla_cross_layer_kernel_equivalence.py::test_flashmla_fp8_sparse_decode_unified_slot_view[2], tests/kernels/attention/test_mla_cross_layer_kernel_equivalence.py::test_flashmla_fp8_sparse_decode_unified_slot_view[4], tests/kernels/attention/test_mla_cross_layer_kernel_equivalence.py::test_indexer_k_quant_and_cache_into_unified_slot_view, tests/kernels/attention/test_mla_cross_layer_kernel_equivalence.py::test_flashattn_mla_dense_decode_unified_slot_view, tests/kernels/attention/test_mla_cross_layer_kernel_equivalence.py::test_flashmla_dense_fp8_decode_unified_slot_view, tests/kernels/attention/test_mla_cross_layer_kernel_equivalence.py::test_flashinfer_mla_dense_fp8_decode_unified_slot_view
+_bk;t=1789711922110
+_bk;t=1789711922110kernels/attention/test_mla_cross_layer_kernel_equivalence.py::test_concat_and_cache_mla_into_unified_slot_view _bk;t=1789711923221[32mPASSED[0m
+_bk;t=1789711923537kernels/attention/test_mla_cross_layer_kernel_equivalence.py::test_flashmla_dense_decode_unified_slot_view [32mPASSED[0m
+_bk;t=1789711923877kernels/attention/test_mla_cross_layer_kernel_equivalence.py::test_flashinfer_mla_dense_decode_unified_slot_view [33mSKIPPED[0m (FlashInfer trtllm-gen MLA ...)
+_bk;t=1789711924773kernels/attention/test_mla_cross_layer_kernel_equivalence.py::test_flashmla_fp8_sparse_decode_unified_slot_view[1] [32mPASSED[0m
+_bk;t=1789711925088kernels/attention/test_mla_cross_layer_kernel_equivalence.py::test_flashmla_fp8_sparse_decode_unified_slot_view[2] [32mPASSED[0m
+_bk;t=1789711925426kernels/attention/test_mla_cross_layer_kernel_equivalence.py::test_flashmla_fp8_sparse_decode_unified_slot_view[4] [32mPASSED[0m
+_bk;t=1789711925753kernels/attention/test_mla_cross_layer_kernel_equivalence.py::test_indexer_k_quant_and_cache_into_unified_slot_view [32mPASSED[0m
+_bk;t=1789711926073kernels/attention/test_mla_cross_layer_kernel_equivalence.py::test_flashattn_mla_dense_decode_unified_slot_view [32mPASSED[0m
+_bk;t=1789711926442kernels/attention/test_mla_cross_layer_kernel_equivalence.py::test_flashmla_dense_fp8_decode_unified_slot_view [32mPASSED[0m
+_bk;t=1789711926771kernels/attention/test_mla_cross_layer_kernel_equivalence.py::test_flashinfer_mla_dense_fp8_decode_unified_slot_view [33mSKIPPED[0m (FlashInfer trtllm-gen ...)
+_bk;t=1789711927084
+_bk;t=1789711927084[33m======================================================================= warnings summary =======================================================================[0m
+_bk;t=1789711927084<frozen importlib._bootstrap>:488
+_bk;t=1789711927084  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+_bk;t=1789711927084
+_bk;t=1789711927084<frozen importlib._bootstrap>:488
+_bk;t=1789711927084  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+_bk;t=1789711927084
+_bk;t=1789711927086../../usr/local/lib/python3.12/dist-packages/torch/jit/_script.py:365: 14 warnings
+_bk;t=1789711927086  /usr/local/lib/python3.12/dist-packages/torch/jit/_script.py:365: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+_bk;t=1789711927086    warnings.warn(
+_bk;t=1789711927086
+_bk;t=1789711927086tests/kernels/attention/test_mla_cross_layer_kernel_equivalence.py::test_flashinfer_mla_dense_decode_unified_slot_view
+_bk;t=1789711927086  /usr/local/lib/python3.12/dist-packages/flashinfer/cute_dsl/availability.py:135: DeprecationWarning: Arch from arch.py is deprecated. Use Arch from enums.py instead.
+_bk;t=1789711927086    from cutlass.base_dsl.arch import Arch
+_bk;t=1789711927086
+_bk;t=1789711927086-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+_bk;t=1789711927086[33m========================================================== [32m8 passed[0m, [33m[1m2 skipped[0m, [33m[1m17 warnings[0m[33m in 5.05s[0m[33m ===========================================================[0m
+_bk;t=1789711928210sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
