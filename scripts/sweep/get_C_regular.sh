@@ -987,7 +987,11 @@ resolve_cache_root() {
 
 resolve_cache_root
 
-if [[ "${DP_MODE}" == "router_dp" ]]; then
+if [[ "${DEVICE}" == "cpu" && "${DP_MODE}" == "router_dp" && ${DP} -gt 1 ]]; then
+    if [[ "${VLLM_CPU_AUTO_BIND}" != "0" ]]; then
+        echo "router_dp on CPU requires explicit per-worker CPU_VISIBLE_MEMORY_NODES; forcing VLLM_CPU_AUTO_BIND=0"
+    fi
+    VLLM_CPU_AUTO_BIND='0'
     CPU_VISIBLE_MEMORY_NODES=''
 elif [[ "${DEVICE}" == "cpu" && "${VLLM_CPU_AUTO_BIND}" != "1" && -z "${CPU_VISIBLE_MEMORY_NODES}" ]]; then
     numa_nodes_total="$(detect_numa_node_count || true)"

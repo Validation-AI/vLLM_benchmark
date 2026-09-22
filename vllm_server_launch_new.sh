@@ -356,10 +356,6 @@ if [[ "$device" == "cpu" ]];then
     if [[ -n "${VLLM_CPU_KVCACHE_SPACE:-}" ]]; then
         common_cpu_env+=("VLLM_CPU_KVCACHE_SPACE=${VLLM_CPU_KVCACHE_SPACE}")
     fi
-    if [[ "${modelid}" == "google/gemma-4-26B-A4B-it" ]]; then
-        common_cpu_env+=("VLLM_CPU_ATTN_SPLIT_KV=0")
-        echo "CPU attention split KV disabled for ${modelid}."
-    fi
     auto_bind_enabled=1
     if [[ "${VLLM_CPU_AUTO_BIND:-1}" == "0" ]]; then
         auto_bind_enabled=0

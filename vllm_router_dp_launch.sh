@@ -368,10 +368,6 @@ for ((i=0; i<dp_size; i++)); do
   if [[ -n "${kvcache_space}" ]]; then
     worker_env+=("VLLM_CPU_KVCACHE_SPACE=${kvcache_space}")
   fi
-  if [[ "${modelid}" == "google/gemma-4-26B-A4B-it" ]]; then
-    worker_env+=("VLLM_CPU_ATTN_SPLIT_KV=0")
-    echo "CPU attention split KV disabled for ${modelid} on router worker ${i}."
-  fi
   worker_cmd=(vllm serve "${modelid}" --dtype "${precision}")
   worker_cmd+=("${worker_parallel_args[@]}")
   worker_cmd+=(--port "${port}")
