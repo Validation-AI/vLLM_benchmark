@@ -615,6 +615,8 @@ jobs:
             if [[ "${DEVICE}" == "cpu" ]]; then
               server_script="vllm_server_launch_new.sh"
               if [[ "${dp_mode}" == "router_dp" ]]; then
+                echo "when mode is router_dp, we need force VLLM_CPU_AUTO_BIND=0 even the AUTO_BIND is set to something else" | tee -a "${WORKSPACE}/logs/summary.log"
+                AUTO_BIND=0
                 server_script="vllm_router_dp_launch.sh"
               elif [[ "${dp_mode}" != "router_dp" && ! "${dp}" =~ ^[1-9][0-9]*$ ]]; then
                 echo "Invalid dp size for manifest row ${row_id}: ${dp}"
