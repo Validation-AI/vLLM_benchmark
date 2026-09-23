@@ -232,6 +232,7 @@ jobs:
             if [[ "${FORCE_PULL:-true}" != "true" ]]; then
               old_digest=$(docker image inspect "${DOCKER_NAME}" --format "${digest_fmt}" 2>/dev/null | head -n1 || true)
             fi
+            echo "old_digest = ${old_digest:-<none>}"
             echo "Pulling latest ${DOCKER_NAME} ..."
             docker pull "${DOCKER_NAME}" || echo "WARN: docker pull ${DOCKER_NAME} failed; will use local cache if present"
             # force_pull=false: if the image is unchanged, there is nothing new
