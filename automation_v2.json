@@ -155,7 +155,7 @@
     "sweep_result": "pass"
   },
   {
-    "enabled": true,
+    "enabled": false,
     "model_id": "Qwen/Qwen3-VL-Embedding-2B",
     "hugginface_path": "/data",
     "tp": 1,
