@@ -986,6 +986,32 @@ def rename_bmg_summary_labels(rows: list[BmgSummaryRow]) -> list[BmgSummaryRow]:
     return renamed_rows
 
 
+def canonicalize_bmg_summary_labels(
+    rows: list[BmgSummaryRow],
+    label_aliases: dict[str, str],
+) -> list[BmgSummaryRow]:
+    canonical_by_resolved = {
+        resolved_label: canonical_label
+        for canonical_label, resolved_label in label_aliases.items()
+    }
+
+    canonical_rows: list[BmgSummaryRow] = []
+    for row in rows:
+        canonical_rows.append(
+            BmgSummaryRow(
+                label=canonical_by_resolved.get(row.label, row.label),
+                upstream_cuda_tests=row.upstream_cuda_tests,
+                cuda_case_counts=row.cuda_case_counts,
+                cuda_duration_seconds=row.cuda_duration_seconds,
+                xpu_test_files=row.xpu_test_files,
+                cmd_jenkins=row.cmd_jenkins,
+                xpu_duration_seconds=row.xpu_duration_seconds,
+                xpu_case_counts=row.xpu_case_counts,
+            )
+        )
+    return canonical_rows
+
+
 class CategoryVisitor(ast.NodeVisitor):
     def __init__(self) -> None:
         self.categories: list[tuple[str, str]] = []
@@ -1993,7 +2019,13 @@ def summarize_bmg_xpu_job(
                 xpu_case_counts=per_label_counts.get(label, CaseCounts()),
             )
         )
-    return rename_bmg_summary_labels(dedupe_upstream_cuda_tests(collapse_bmg_summary_rows(rows)))
+    return rename_bmg_summary_labels(
+        dedupe_upstream_cuda_tests(
+            collapse_bmg_summary_rows(
+                canonicalize_bmg_summary_labels(rows, label_aliases)
+            )
+        )
+    )
 
 
 def render_bmg_summary_table(rows: list[BmgSummaryRow]) -> str:
