@@ -107,7 +107,7 @@
     "output": "2048",
     "sla": "TTFT < 3s; TPOT < 100ms",
     "arch": "MoE",
-    "last_run_at": "2026-09-18T14:02:43Z",
+    "last_run_at": "2026-10-08T10:34:51Z",
     "last_status": "FAIL",
     "last_build_number": null,
     "last_batch_size": null,
