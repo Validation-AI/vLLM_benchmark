@@ -43,6 +43,8 @@ CPU_VISIBLE_MEMORY_NODES=${CPU_VISIBLE_MEMORY_NODES:-}
 VLLM_CPU_OMP_THREADS_BIND=${VLLM_CPU_OMP_THREADS_BIND:-}
 VLLM_CPU_KVCACHE_SPACE=${VLLM_CPU_KVCACHE_SPACE:-}
 RESUME=${RESUME:-1}
+RESUME_MODE=${RESUME_MODE:-pass_only}
+CHECKPOINT_RESULTS=${CHECKPOINT_RESULTS:-0}
 FORCE_STANDARD_LOG_LAYOUT=${FORCE_STANDARD_LOG_LAYOUT:-1}
 # Hard safety cap (not a target) for the bottom-up doubling sweep used when no KV
 # cache size is reported (e.g. encoder-only pooling backends). The sweep is expected
@@ -57,6 +59,7 @@ CASE_LIST_XLSX=${CASE_LIST_XLSX:-${REPO_ROOT}/automation/manifests/serving_tunin
 CASE_LIST_SHEET=${CASE_LIST_SHEET:-serving_tuning}
 CASE_LIST_MODEL_FILTER=${CASE_LIST_MODEL_FILTER:-}
 CASE_LIST_JSON_OUTPUT=${CASE_LIST_JSON_OUTPUT:-}
+CASE_LIST_COMMIT_PATH=${CASE_LIST_COMMIT_PATH:-}
 BENCH_BACKEND=${BENCH_BACKEND:-}
 BENCH_ENDPOINT=${BENCH_ENDPOINT:-}
 BENCH_DATASET_NAME=${BENCH_DATASET_NAME:-}
@@ -88,6 +91,79 @@ format_duration() {
     seconds=$((total_seconds % 60))
 
     printf '%02dh:%02dm:%02ds' "${hours}" "${minutes}" "${seconds}"
+}
+
+validate_resume_mode() {
+    case "${RESUME_MODE}" in
+        pass_only|attempted)
+            return 0
+            ;;
+        *)
+            echo "ERROR: unsupported RESUME_MODE='${RESUME_MODE}'. Expected one of: pass_only, attempted" >&2
+            exit 1
+            ;;
+    esac
+}
+
+should_skip_case_row() {
+    local last_status_value="$1"
+    local existing_c_recommended="$2"
+    local existing_c_regular="$3"
+    local last_run_at_value="$4"
+
+    if [[ "${RESUME}" != "1" ]]; then
+        return 1
+    fi
+
+    case "${RESUME_MODE}" in
+        pass_only)
+            [[ "${last_status_value}" == "PASS" && -n "${existing_c_recommended}" && -n "${existing_c_regular}" ]]
+            ;;
+        attempted)
+            [[ -n "${last_run_at_value}" || -n "${last_status_value}" || -n "${existing_c_recommended}" || -n "${existing_c_regular}" ]]
+            ;;
+    esac
+}
+
+persist_case_list_checkpoint() {
+    local row_idx="$1"
+    local model_value="$2"
+    local status_value="$3"
+
+    if [[ "${CHECKPOINT_RESULTS}" != "1" ]]; then
+        return 0
+    fi
+
+    if [[ -z "${CASE_LIST_COMMIT_PATH}" || "${CASE_LIST_COMMIT_PATH,,}" != *.json ]]; then
+        echo "Skipping checkpoint commit for row=${row_idx}: CASE_LIST_COMMIT_PATH is not a JSON manifest." >&2
+        return 0
+    fi
+
+    if [[ ! -d "${REPO}/.git" ]]; then
+        echo "Skipping checkpoint commit for row=${row_idx}: repo is not a git checkout (${REPO})." >&2
+        return 0
+    fi
+
+    git -C "${REPO}" config user.name "github-actions[bot]"
+    git -C "${REPO}" config user.email "github-actions[bot]@users.noreply.github.com"
+    git -C "${REPO}" add "${CASE_LIST_COMMIT_PATH}"
+    if git -C "${REPO}" diff --cached --quiet -- "${CASE_LIST_COMMIT_PATH}"; then
+        git -C "${REPO}" restore --staged -- "${CASE_LIST_COMMIT_PATH}" 2>/dev/null || true
+        return 0
+    fi
+
+    git -C "${REPO}" commit -m "Checkpoint ${CASE_LIST_COMMIT_PATH} row ${row_idx} (${model_value}) ${status_value}" >/dev/null
+
+    if ! git -C "${REPO}" push origin "HEAD:${GITHUB_REF_NAME}" >/dev/null; then
+        echo "Checkpoint push rejected after row=${row_idx}; fetching + rebasing once before retrying." >&2
+        git -C "${REPO}" fetch origin "${GITHUB_REF_NAME}"
+        if ! git -C "${REPO}" rebase "origin/${GITHUB_REF_NAME}"; then
+            git -C "${REPO}" rebase --abort || true
+            echo "ERROR: checkpoint rebase conflict after row=${row_idx}; keep local manifest changes and rely on final persist step." >&2
+            return 1
+        fi
+        git -C "${REPO}" push origin "HEAD:${GITHUB_REF_NAME}" >/dev/null
+    fi
 }
 
 resolve_benchmark_transport() {
@@ -501,6 +577,7 @@ for row_idx, row in enumerate(rows, start=1):
         dp_mode = str(dp_mode).strip()
     extra_args = as_text(row.get("extra_args"))
     last_status = as_text(row.get("last_status"))
+    last_run_at = as_text(row.get("last_run_at"))
     c_recommended = as_text(row.get("c_recommended"))
     c_regular = as_text(row.get("c_regular"))
     length_in = as_text(row.get("input"))
@@ -515,6 +592,7 @@ for row_idx, row in enumerate(rows, start=1):
         dp_mode,
         extra_args,
         last_status,
+        last_run_at,
         c_recommended,
         c_regular,
         length_in,
@@ -583,6 +661,9 @@ for row_idx in range(2, ws.max_row + 1):
     last_status = ""
     if "last_status" in header_to_col:
         last_status = as_text(ws.cell(row=row_idx, column=header_to_col["last_status"]).value)
+    last_run_at = ""
+    if "last_run_at" in header_to_col:
+        last_run_at = as_text(ws.cell(row=row_idx, column=header_to_col["last_run_at"]).value)
     c_recommended = ""
     if "c_recommended" in header_to_col:
         c_recommended = as_text(ws.cell(row=row_idx, column=header_to_col["c_recommended"]).value)
@@ -607,6 +688,7 @@ for row_idx in range(2, ws.max_row + 1):
         dp_mode,
         extra_args,
         last_status,
+        last_run_at,
         c_recommended,
         c_regular,
         length_in,
@@ -840,7 +922,7 @@ PY
 
 run_case_list() {
     local row_idx model_value tp_value pp_value dp_value dp_mode_value manifest_extra_args
-    local last_status_value existing_c_recommended existing_c_regular
+    local last_status_value last_run_at_value existing_c_recommended existing_c_regular
     local case_run_tag case_server_container case_server_extra_args case_log_dir
     local case_output_log result_marker_line marker_model marker_c_recommended marker_c_regular marker_recommendation
     local marker_last_throughput marker_last_ttft marker_last_tpot marker_last_command
@@ -853,13 +935,14 @@ run_case_list() {
         exit 1
     fi
 
+    validate_resume_mode
     ensure_case_list_result_columns
 
-    while IFS=$'\x1f' read -r row_idx model_value tp_value pp_value dp_value dp_mode_value manifest_extra_args last_status_value existing_c_recommended existing_c_regular case_length_in case_length_out case_sla; do
+    while IFS=$'\x1f' read -r row_idx model_value tp_value pp_value dp_value dp_mode_value manifest_extra_args last_status_value last_run_at_value existing_c_recommended existing_c_regular case_length_in case_length_out case_sla; do
         [[ -z "${row_idx}" ]] && continue
 
-        if [[ "${RESUME}" == "1" && "${last_status_value}" == "PASS" && -n "${existing_c_recommended}" && -n "${existing_c_regular}" ]]; then
-            echo "Skipping completed case row=${row_idx} model=${model_value} c_recommended=${existing_c_recommended} c_regular=${existing_c_regular}"
+        if should_skip_case_row "${last_status_value}" "${existing_c_recommended}" "${existing_c_regular}" "${last_run_at_value}"; then
+            echo "Skipping saved case row=${row_idx} model=${model_value} resume_mode=${RESUME_MODE} status=${last_status_value:-none} last_run_at=${last_run_at_value:-none} c_recommended=${existing_c_recommended:-none} c_regular=${existing_c_regular:-none}"
             continue
         fi
 
@@ -909,6 +992,7 @@ run_case_list() {
             if [[ -z "${result_marker_line}" ]]; then
                 failure_note="missing result marker; run_logs_dir=${case_log_dir}; wrapper_log=${case_output_log}; failure_context=${case_log_dir}/${case_run_tag}_failure_context.log; server_failure_snapshot=${case_log_dir}/${case_run_tag}_server_failure_snapshot.log"
                 write_case_list_result "${row_idx}" "FAIL" "${failure_note}" "" "" "" "" "" "" "fail_on_error"
+                persist_case_list_checkpoint "${row_idx}" "${model_value}" "FAIL"
                 echo "ERROR: missing result marker for case row=${row_idx}, model=${model_value}" >&2
                 if [[ "${CONTINUE_ON_CASE_FAILURE}" == "1" ]]; then
                     continue
@@ -918,6 +1002,7 @@ run_case_list() {
 
             IFS='|' read -r _ marker_model marker_c_recommended marker_c_regular marker_recommendation marker_last_throughput marker_last_ttft marker_last_tpot marker_last_command <<< "${result_marker_line}"
             write_case_list_result "${row_idx}" "PASS" "run_logs_dir=${case_log_dir}; recommendation=${marker_recommendation}; wrapper_log=${case_output_log}" "${marker_c_recommended}" "${marker_c_regular}" "${marker_last_throughput}" "${marker_last_ttft}" "${marker_last_tpot}" "${marker_last_command}" "pass"
+            persist_case_list_checkpoint "${row_idx}" "${marker_model}" "PASS"
             if case_list_is_json; then
                 echo "Updated json row=${row_idx} model=${marker_model} c_recommended=${marker_c_recommended} c_regular=${marker_c_regular} throughput=${marker_last_throughput} ttft_ms=${marker_last_ttft} tpot_ms=${marker_last_tpot} output=${CASE_LIST_JSON_OUTPUT}"
             else
@@ -933,6 +1018,7 @@ run_case_list() {
             fi
             failure_note="exit_code=${case_exit_code}; run_logs_dir=${case_log_dir}; wrapper_log=${case_output_log}; failure_context=${case_log_dir}/${case_run_tag}_failure_context.log; server_failure_snapshot=${case_log_dir}/${case_run_tag}_server_failure_snapshot.log"
             write_case_list_result "${row_idx}" "FAIL" "${failure_note}" "" "" "" "" "" "" "${sweep_result_value}"
+            persist_case_list_checkpoint "${row_idx}" "${model_value}" "FAIL"
             echo "ERROR: case row=${row_idx} model=${model_value} failed (${sweep_result_value})" >&2
             if [[ "${CONTINUE_ON_CASE_FAILURE}" == "1" ]]; then
                 continue

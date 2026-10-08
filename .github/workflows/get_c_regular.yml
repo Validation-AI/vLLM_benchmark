@@ -38,6 +38,16 @@ on:
         required: false
         default: true
         type: boolean
+      resume_mode:
+        description: "Which saved rows to skip when resume_existing_results is true: pass_only or attempted"
+        required: false
+        default: pass_only
+        type: string
+      checkpoint_results:
+        description: Commit and push the manifest after each finished case so partial progress survives cancellations
+        required: false
+        default: false
+        type: boolean
       validate_output_layout_only:
         description: Only validate output paths without running benchmark
         required: false
@@ -161,9 +171,12 @@ jobs:
           export SERVER_EXTRA_ARGS='${{ inputs.server_extra_args }}'
           export RUN_FROM_CASE_LIST='1'
           export RESUME='${{ inputs.resume_existing_results && '1' || '0' }}'
+          export RESUME_MODE='${{ inputs.resume_mode }}'
+          export CHECKPOINT_RESULTS='${{ inputs.checkpoint_results && '1' || '0' }}'
           export CONTINUE_ON_CASE_FAILURE='${{ inputs.continue_on_case_failure && '1' || '0' }}'
           export VALIDATE_OUTPUT_LAYOUT_ONLY='${{ inputs.validate_output_layout_only && '1' || '0' }}'
           export CASE_LIST_XLSX="${WORKSPACE}/${{ inputs.case_list_xlsx }}"
+          export CASE_LIST_COMMIT_PATH='${{ inputs.case_list_xlsx }}'
           export CASE_LIST_SHEET='${{ inputs.case_list_sheet }}'
           export CASE_LIST_MODEL_FILTER='${{ inputs.model }}'
 
