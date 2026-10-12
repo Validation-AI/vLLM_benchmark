@@ -119,7 +119,7 @@ on:
         default: ""
         type: string
       session_id:
-        description: "To continue a previous run, enter that run's number (the #NN shown in the Actions run list). Leave empty to start a new session keyed by this run's number."
+        description: "To continue a previous run, enter the SESSION_ID printed by that run (shown as 'SESSION_ID=...' in its log/summary). Leave empty to start a fresh session (unique per run; no rows are skipped)."
         required: false
         default: ""
         type: string
@@ -475,9 +475,20 @@ jobs:
           # cancellation and a fresh checkout in a follow-up run. Each completed
           # row is copied here immediately; a later run that reuses the printed
           # SESSION_ID restores these results and skips those rows.
+          #
+          # Resume is opt-in: only an explicit session_id input restores+skips
+          # prior rows. A fresh run must get a UNIQUE key, otherwise it silently
+          # reuses a stale, colliding session and skips rows (reporting old
+          # data with no exec_time). GITHUB_RUN_NUMBER is per-workflow and
+          # repeats over time, so the persist store (shared by every workflow on
+          # the runner) collides across workflows/history; GITHUB_RUN_ID is
+          # globally unique, so default to it.
+          resume_session=0
           session_id="${SESSION_ID:-}"
           if [[ -z "${session_id//[$'\t\r\n ']/}" ]]; then
-            session_id="${GITHUB_RUN_NUMBER:-${BUILD_NUMBER:-$$}}"
+            session_id="${GITHUB_RUN_ID:-${BUILD_NUMBER:-$$}}"
+          else
+            resume_session=1
           fi
           persist_root="${RUNNER_WORKSPACE:-${WORKSPACE}/..}/vllm_bench_sessions/${session_id}"
           persist_results="${persist_root}/row_results"
@@ -485,12 +496,17 @@ jobs:
           mkdir -p "${persist_results}" "${persist_server_logs}"
           echo "SESSION_ID=${session_id}" | tee -a "${WORKSPACE}/logs/summary.log"
           echo "To continue this run later, re-run the workflow with session_id=${session_id} (completed rows will be skipped)."
-          # Restore previously completed rows so the final compile/writeback
-          # covers the whole matrix, not only the rows this run executed.
-          cp -f "${persist_results}"/*.json "${WORKSPACE}/logs/row_results/" 2>/dev/null || true
-          # Restore previously saved per-model server logs too.
-          mkdir -p "${WORKSPACE}/logs/server_logs"
-          cp -rf "${persist_server_logs}"/. "${WORKSPACE}/logs/server_logs/" 2>/dev/null || true
+          if [[ "${resume_session}" == "1" ]]; then
+            # Restore previously completed rows so the final compile/writeback
+            # covers the whole matrix, not only the rows this run executed.
+            cp -f "${persist_results}"/*.json "${WORKSPACE}/logs/row_results/" 2>/dev/null || true
+            # Restore previously saved per-model server logs too.
+            mkdir -p "${WORKSPACE}/logs/server_logs"
+            cp -rf "${persist_server_logs}"/. "${WORKSPACE}/logs/server_logs/" 2>/dev/null || true
+          else
+            echo "Fresh session (no session_id input): not restoring any prior rows; every row runs."
+            mkdir -p "${WORKSPACE}/logs/server_logs"
+          fi
 
           # Build args as an array so values with commas/special chars (e.g. a
           # multi-model --row-filter) are passed verbatim. The previous
@@ -592,7 +608,9 @@ jobs:
             vllm_client_command=""
 
             # Resume support: skip rows already completed in this session.
-            if [[ -f "${persist_results}/${safe_row_id}.json" ]]; then
+            # Only when resuming an explicit session_id; a fresh run must run
+            # every row (never reuse a colliding/stale persisted result).
+            if [[ "${resume_session}" == "1" && -f "${persist_results}/${safe_row_id}.json" ]]; then
               cp -f "${persist_results}/${safe_row_id}.json" "${host_result_path}" 2>/dev/null || true
               prev_status=$(python3 -c 'import json,sys; from pathlib import Path; print(json.loads(Path(sys.argv[1]).read_text()).get("status",""))' "${host_result_path}" 2>/dev/null || echo "")
               echo "ROW_SKIP row_id=${row_id} status=${prev_status} (already completed in session ${session_id})" | tee -a "${WORKSPACE}/logs/summary.log"
