@@ -127,6 +127,9 @@ on:
 
 permissions:
   contents: read
+  # Needed to list previous workflow runs and download their report artifact
+  # (the reference for the current run's comparison).
+  actions: read
 
 jobs:
   manifest:
@@ -267,32 +270,43 @@ jobs:
           fi
           echo "report_json = ${REPORT_JSON:-<none>}"
           echo "REPORT_JSON=${REPORT_JSON}" >> "${GITHUB_ENV}"
-          # Reference report to compare against: a valid reference_json input
-          # wins, otherwise use the most recent report in the category folder.
+          # Reference report to compare against. A valid reference_json input
+          # always wins. Otherwise the reference is the report artifact of the
+          # last SUCCESSFUL run of the SAME category: each run uploads its
+          # report as the artifact "vllm-bench-report-<category>", and a later
+          # "Find reference run" step locates and downloads it. The committed
+          # automation/reports/<category>/ folder is only a last-resort seed
+          # used when no such artifact exists yet.
+          ref_artifact="vllm-bench-report-${CATEGORY}"
+          echo "REF_ARTIFACT_NAME=${ref_artifact}" >> "${GITHUB_ENV}"
           ref_input="${INPUT_REFERENCE_JSON:-}"
           if [[ -n "${ref_input}" && -f "${ref_input}" ]]; then
-            REFERENCE_JSON="${ref_input}"
-            echo "Using reference_json input: ${REFERENCE_JSON}"
+            echo "REFERENCE_JSON=${ref_input}" >> "${GITHUB_ENV}"
+            echo "REF_SOURCE=input" >> "${GITHUB_ENV}"
+            echo "Using reference_json input: ${ref_input}"
           elif [[ -n "${ref_input}" && -f "${WORKSPACE}/${ref_input}" ]]; then
-            REFERENCE_JSON="${WORKSPACE}/${ref_input}"
-            echo "Using reference_json input: ${REFERENCE_JSON}"
+            echo "REFERENCE_JSON=${WORKSPACE}/${ref_input}" >> "${GITHUB_ENV}"
+            echo "REF_SOURCE=input" >> "${GITHUB_ENV}"
+            echo "Using reference_json input: ${WORKSPACE}/${ref_input}"
           else
-            [[ -n "${ref_input}" ]] && echo "reference_json input '${ref_input}' not found; picking latest report in category folder."
-            # nightly (YYYY-MM-DD) and weekly (YYYYwwNN) filenames sort
-            # chronologically; release (<tag>) picks the highest version.
+            [[ -n "${ref_input}" ]] && echo "reference_json input '${ref_input}' not found; will fetch the last successful ${CATEGORY} run's artifact."
+            echo "REF_SOURCE=artifact" >> "${GITHUB_ENV}"
+            # Last-resort committed seed if no prior artifact is found.
             shopt -s nullglob
             cand=("${reports_dir}/${CATEGORY}"/*.json)
             shopt -u nullglob
-            if [[ ${#cand[@]} -eq 0 ]]; then
-              REFERENCE_JSON=""
-            elif [[ "${CATEGORY}" == "release" ]]; then
-              REFERENCE_JSON="$(printf '%s\n' "${cand[@]}" | sort -V | tail -n1)"
-            else
-              REFERENCE_JSON="$(printf '%s\n' "${cand[@]}" | sort | tail -n1)"
+            seed=""
+            if [[ ${#cand[@]} -gt 0 ]]; then
+              if [[ "${CATEGORY}" == "release" ]]; then
+                seed="$(printf '%s\n' "${cand[@]}" | sort -V | tail -n1)"
+              else
+                seed="$(printf '%s\n' "${cand[@]}" | sort | tail -n1)"
+              fi
             fi
+            echo "REF_SEED_JSON=${seed}" >> "${GITHUB_ENV}"
+            echo "ref_artifact_name = ${ref_artifact}"
+            echo "ref_seed_json     = ${seed:-<none>}"
           fi
-          echo "reference_json = ${REFERENCE_JSON:-<none>}"
-          echo "REFERENCE_JSON=${REFERENCE_JSON}" >> "${GITHUB_ENV}"
 
       - name: Print workflow configuration
         shell: bash
@@ -825,6 +839,73 @@ jobs:
             docker rm "${container_name}" >/dev/null 2>&1 || true
           done < <(python3 -c 'import csv, json, sys; from pathlib import Path; rows=json.loads(Path(sys.argv[1]).read_text()); writer=csv.writer(sys.stdout, delimiter="\x1f", lineterminator="\n"); [writer.writerow([row.get("row_id", ""), row.get("model_id", ""), row.get("hugginface_path_185", ""), row.get("hugginface_path_124", ""), row.get("hugginface_path", ""), row.get("tp", ""), row.get("pp", ""), row.get("dp", ""), row.get("dp_mode", ""), row.get("extra_args", ""), row.get("last_batch_size", ""), row.get("history_source", ""), row.get("input", ""), row.get("output", ""),row.get("c_regular", ""), row.get("c_bs", ""), row.get("sweep_result", ""), row.get("priority", "")]) for row in rows]' "${rows_json}")
 
+      - name: Find reference run
+        # Locate the most recent SUCCESSFUL run of this workflow (any trigger)
+        # that uploaded the report artifact for THIS category. That run is the
+        # baseline the current run is compared against.
+        id: find_ref
+        if: ${{ always() && env.SKIP_RUN != '1' && env.REF_SOURCE == 'artifact' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const refName = process.env.REF_ARTIFACT_NAME;
+            const { owner, repo } = context.repo;
+            const cur = await github.rest.actions.getWorkflowRun({
+              owner, repo, run_id: context.runId,
+            });
+            const workflowId = cur.data.workflow_id;
+            core.info(`Looking for artifact "${refName}" from workflow_id=${workflowId}`);
+            // Scan only recent successful runs (newest first). A few weekly /
+            // ondemand / release runs may sit between two nightlies, so look
+            // back a bounded window rather than paginating all history.
+            const MAX_RUNS = 80;
+            const runsResp = await github.rest.actions.listWorkflowRuns({
+              owner, repo, workflow_id: workflowId, status: 'success', per_page: MAX_RUNS,
+            });
+            const runs = runsResp.data.workflow_runs;
+            for (const run of runs) {
+              if (run.id === context.runId) continue;
+              const arts = await github.rest.actions.listWorkflowRunArtifacts({
+                owner, repo, run_id: run.id, per_page: 100,
+              });
+              const hit = arts.data.artifacts.find(a => a.name === refName && !a.expired);
+              if (hit) {
+                core.info(`Reference run #${run.run_number} (id=${run.id}) artifact id=${hit.id}`);
+                core.setOutput('found', 'true');
+                core.setOutput('run_id', String(run.id));
+                core.setOutput('run_number', String(run.run_number));
+                return;
+              }
+            }
+            core.info(`No prior successful run with artifact "${refName}" found.`);
+            core.setOutput('found', 'false');
+
+      - name: Download reference report
+        if: ${{ always() && env.SKIP_RUN != '1' && steps.find_ref.outputs.found == 'true' }}
+        uses: actions/download-artifact@v5
+        with:
+          name: ${{ env.REF_ARTIFACT_NAME }}
+          run-id: ${{ steps.find_ref.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ github.workspace }}/reference_report
+
+      - name: Resolve reference report path
+        if: ${{ always() && env.SKIP_RUN != '1' && env.REF_SOURCE == 'artifact' }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          # Prefer the downloaded artifact; otherwise fall back to the committed
+          # seed resolved in "Resolve run category".
+          ref="$(ls "${WORKSPACE}/reference_report/"*.json 2>/dev/null | head -n1 || true)"
+          if [[ -z "${ref}" ]]; then
+            ref="${REF_SEED_JSON:-}"
+            [[ -n "${ref}" ]] && echo "No reference artifact; using committed seed: ${ref}"
+          else
+            echo "Reference artifact from run #${{ steps.find_ref.outputs.run_number }}: ${ref}"
+          fi
+          echo "REFERENCE_JSON=${ref}" >> "${GITHUB_ENV}"
+          echo "reference_json (effective) = ${ref:-<none>}"
+
       - name: Generate report
         if: ${{ always() && env.SKIP_RUN != '1' }}
         shell: bash
@@ -916,6 +997,45 @@ jobs:
           else
             echo "(serving_tuning_results.csv not found)"
           fi
+
+      - name: Compare with reference report
+        if: ${{ always() && env.SKIP_RUN != '1' }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          # Diff this run's report against the reference (last successful run of
+          # the same category). Writes a markdown summary + CSV/JSON diff under
+          # logs/comparison/ (uploaded with the logs artifact). A missing
+          # reference is not fatal: the script just reports "no baseline".
+          if [[ -z "${REPORT_JSON:-}" || ! -f "${REPORT_JSON}" ]]; then
+            echo "No current report (${REPORT_JSON:-<none>}); skipping comparison."
+            exit 0
+          fi
+          ref_label="${REFERENCE_JSON:-<none>}"
+          if [[ -n "${REF_SOURCE:-}" && "${REF_SOURCE}" == "artifact" && "${{ steps.find_ref.outputs.found }}" == "true" ]]; then
+            ref_label="run #${{ steps.find_ref.outputs.run_number }} (${CATEGORY})"
+          fi
+          mkdir -p "${WORKSPACE}/logs/comparison"
+          python3 "${WORKSPACE}/automation/compare_reports.py" \
+            --current "${REPORT_JSON}" \
+            --reference "${REFERENCE_JSON:-}" \
+            --reference-label "${ref_label}" \
+            --threshold 5 \
+            --json-out "${WORKSPACE}/logs/comparison/comparison_${CATEGORY}.json" \
+            --csv-out "${WORKSPACE}/logs/comparison/comparison_${CATEGORY}.csv" \
+            --summary "${GITHUB_STEP_SUMMARY}" || echo "compare_reports failed (non-fatal)"
+
+      - name: Upload report artifact (reference for next run)
+        # This is what a later run of the same category downloads as its
+        # baseline. Keep it small (just the report JSON) and name it per
+        # category so nightly/weekly/release references never cross over.
+        if: ${{ always() && env.SKIP_RUN != '1' && env.REPORT_JSON != '' }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: ${{ env.REF_ARTIFACT_NAME }}
+          path: ${{ env.REPORT_JSON }}
+          if-no-files-found: ignore
+          retention-days: 90
 
       - name: Prune logs before upload
         if: ${{ always() && env.SKIP_RUN != '1' }}
