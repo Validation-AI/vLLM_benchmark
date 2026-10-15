@@ -712,9 +712,11 @@ jobs:
               vllm_server_command="$( { docker logs "${container_name}" 2>&1; cat "${WORKSPACE}"/logs/router*.log 2>/dev/null; } | grep -aoE 'vllm serve .*' | head -n1 || true)"
               row_elapsed_s=$(( $(date +%s) - row_start_ts ))
               echo "ROW_TIME row_id=${row_id} model=${model_id} elapsed_s=${row_elapsed_s} ($(printf '%02d:%02d:%02d' $((row_elapsed_s/3600)) $(((row_elapsed_s%3600)/60)) $((row_elapsed_s%60))))" | tee -a "${WORKSPACE}/logs/summary.log"
-              record_row_time "${host_result_path}" "${row_elapsed_s}"
-              record_row_meta "${host_result_path}" "${docker_server_command}" "${docker_client_command}" "${vllm_server_command}" "${vllm_client_command}"
-              record_row_priority "${host_result_path}" "${row_priority}"
+              # Non-fatal: a failure here must not skip the later meta/priority
+              # writes or abort the whole matrix.
+              record_row_time "${host_result_path}" "${row_elapsed_s}" || echo "WARN record_row_time failed row_id=${row_id}"
+              record_row_meta "${host_result_path}" "${docker_server_command}" "${docker_client_command}" "${vllm_server_command}" "${vllm_client_command}" || echo "WARN record_row_meta failed row_id=${row_id}"
+              record_row_priority "${host_result_path}" "${row_priority}" || echo "WARN record_row_priority failed row_id=${row_id}"
               cp -f "${host_result_path}" "${persist_results}/${safe_row_id}.json" 2>/dev/null || true
               docker exec "${container_name}" pkill -2 -f 'vllm.entrypoints.openai.api_server' >/dev/null 2>&1 || true
               docker stop "${container_name}" >/dev/null 2>&1 || true
@@ -783,7 +785,12 @@ jobs:
               docker_client_command="$(printf '%q ' "${client_docker_cmd[@]}")"
               echo "=== CLIENT docker command (row_id=${row_id} length=${length_config}) ==="
               printf '%s\n' "${docker_client_command}"
-              "${client_docker_cmd[@]}" 2>&1 | tee "${client_capture}"
+              # A hard client failure (crash/OOM/unhandled error) must not
+              # abort the whole step (set -e + pipefail): capture its status so
+              # the row still records a result plus its metadata, and later rows
+              # keep running.
+              client_rc=0
+              "${client_docker_cmd[@]}" 2>&1 | tee "${client_capture}" || client_rc=$?
               # Best-effort: capture the actual "vllm bench serve ..." the client ran.
               vllm_client_command="$(grep -aoE 'vllm bench serve .*' "${client_capture}" | head -n1 || true)"
 
@@ -791,15 +798,21 @@ jobs:
                 result_status=$(python3 -c 'import json,sys; from pathlib import Path; print(json.loads(Path(sys.argv[1]).read_text()).get("status", "MODEL_ERROR"))' "${host_result_path}")
                 echo "ROW_RESULT row_id=${row_id} status=${result_status} model=${model_id} tp=${tp} pp=${pp} dp=${dp} dp_mode=${dp_mode} dtype=${DEFAULT_DTYPE} length=${length_config}" | tee -a "${WORKSPACE}/logs/summary.log"
               else
-                echo "ROW_RESULT row_id=${row_id} status=MODEL_ERROR model=${model_id} tp=${tp} pp=${pp} dp=${dp} dp_mode=${dp_mode} dtype=${DEFAULT_DTYPE} length=${length_config} error=missing_result_file" | tee -a "${WORKSPACE}/logs/summary.log"
+                # Client exited without writing a result (e.g. non-zero exit).
+                # Synthesize a MODEL_ERROR row so it still shows in the report
+                # and the metadata (priority + commands) below can attach to it.
+                write_row_error_result "${host_result_path}" "${row_id}" "${model_id}" "${tp}" "${pp}" "${dp}" "${dp_mode}" "${DEFAULT_DTYPE}" "${HARDWARE}" "${length_config}" "MODEL_ERROR" "client_rc=${client_rc}:missing_result_file"
+                echo "ROW_RESULT row_id=${row_id} status=MODEL_ERROR model=${model_id} tp=${tp} pp=${pp} dp=${dp} dp_mode=${dp_mode} dtype=${DEFAULT_DTYPE} length=${length_config} error=missing_result_file client_rc=${client_rc}" | tee -a "${WORKSPACE}/logs/summary.log"
               fi
             done
 
             row_elapsed_s=$(( $(date +%s) - row_start_ts ))
             echo "ROW_TIME row_id=${row_id} model=${model_id} elapsed_s=${row_elapsed_s} ($(printf '%02d:%02d:%02d' $((row_elapsed_s/3600)) $(((row_elapsed_s%3600)/60)) $((row_elapsed_s%60))))" | tee -a "${WORKSPACE}/logs/summary.log"
-            record_row_time "${host_result_path}" "${row_elapsed_s}"
-            record_row_meta "${host_result_path}" "${docker_server_command}" "${docker_client_command}" "${vllm_server_command}" "${vllm_client_command}"
-            record_row_priority "${host_result_path}" "${row_priority}"
+            # Non-fatal: a failure here must not skip the later meta/priority
+            # writes or abort the whole matrix.
+            record_row_time "${host_result_path}" "${row_elapsed_s}" || echo "WARN record_row_time failed row_id=${row_id}"
+            record_row_meta "${host_result_path}" "${docker_server_command}" "${docker_client_command}" "${vllm_server_command}" "${vllm_client_command}" || echo "WARN record_row_meta failed row_id=${row_id}"
+            record_row_priority "${host_result_path}" "${row_priority}" || echo "WARN record_row_priority failed row_id=${row_id}"
 
             # Persist this row's result so a resumed run skips it.
             cp -f "${host_result_path}" "${persist_results}/${safe_row_id}.json" 2>/dev/null || true
